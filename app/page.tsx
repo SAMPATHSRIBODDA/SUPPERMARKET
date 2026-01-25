@@ -95,13 +95,13 @@ const PenumudiesApp = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-dismiss login success message after 6 seconds
+  // Auto-dismiss login success message after 2 seconds
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined;
     if (showLoginSuccess) {
       timer = setTimeout(() => {
         setShowLoginSuccess(false);
-      }, 6000);
+      }, 2000);
     }
     return () => {
       if (timer) clearTimeout(timer);
@@ -435,7 +435,7 @@ const PenumudiesApp = () => {
           password: password // Store for session
         });
         
-        setSuccess('Login successful!');
+        setShowLoginSuccess(true);
         setMobile('');
         setPassword('');
         
