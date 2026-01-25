@@ -1,0 +1,7 @@
+'use client';
+
+import PenumudiesApp from './penumudies-app';
+
+export default function Page() {
+  return <PenumudiesApp />;
+}

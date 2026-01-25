@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #000000;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure all text elements have maximum readability */
+* {
+  color: #000000 !important;
+}
+
+body, body * {
+  color: #000000 !important;
+}
+
+/* Override any opacity or faded text */
+.opacity-50,
+.opacity-60,
+.opacity-70 {
+  opacity: 1 !important;
+  color: #000000 !important;
+}
+
+/* Text styling overrides */
+p, span, div, a, button, label, input::placeholder, h1, h2, h3, h4, h5, h6 {
+  color: #000000 !important;
+}
+
+/* Input fields */
+input, textarea, select {
+  color: #000000 !important;
+}
+
+input::placeholder {
+  color: #000000 !important;
+  opacity: 1 !important;
+}
+
+/* Ensure button text is visible */
+button {
+  color: inherit !important;
+}
+
+button:not(.bg-blue-600):not(.bg-green-600):not(.bg-red-600):not(.text-white) {
+  color: #000000 !important;
+}
+
+/* Cart and product labels */
+.text-gray-300,
+.text-gray-400,
+.text-gray-500,
+.text-gray-600,
+.text-gray-700,
+.text-gray-800 {
+  color: #000000 !important;
+}
+
+/* Ensure all text is opaque */
+[class*="opacity"] {
+  opacity: 1 !important;
+}
+
+/* Faded text fix */
+[class*="text-opacity"] {
+  opacity: 1 !important;
+  color: #000000 !important;
+}
