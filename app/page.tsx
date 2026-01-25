@@ -497,18 +497,24 @@ const PenumudiesApp = () => {
 
   const SignUpPage = () => {
     const [mobile, setMobile] = useState('');
+    const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
-    const handleSignUp = () => {
+    const handleSignUp = async () => {
       setError('');
-      if (!mobile || !password || !confirmPassword) {
+      if (!mobile || !name || !password || !confirmPassword) {
         setError('Please fill in all fields');
         return;
       }
 
       if (!/^\d{10}$/.test(mobile)) {
         setError('Please enter a valid 10-digit mobile number');
+        return;
+      }
+
+      if (name.trim().length < 2) {
+        setError('Name must be at least 2 characters');
         return;
       }
 
@@ -522,18 +528,44 @@ const PenumudiesApp = () => {
         return;
       }
 
-      if (users.find(u => u.mobile === mobile)) {
-        setError('Mobile number already registered');
-        return;
+      try {
+        const response = await fetch('/api/users/signup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            mobile,
+            name: name.trim(),
+            password
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError(data.message || 'Signup failed');
+          return;
+        }
+
+        // Set current user with token for API calls
+        setCurrentUser({
+          ...data.user,
+          password: password
+        });
+
+        setSuccess('Account created successfully!');
+        setMobile('');
+        setName('');
+        setPassword('');
+        setConfirmPassword('');
+        
+        // Navigate to home after success
+        setTimeout(() => setCurrentPage('home'), 1500);
+      } catch (err) {
+        setError('Signup failed. Please try again.');
+        console.error('Signup error:', err);
       }
-
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOTP(otp);
-      setOtpExpiry(Date.now() + 5 * 60 * 1000);
-      setPendingUser({ mobile, password, name: `User${mobile.slice(-4)}` } as User);
-
-      setSuccess(`OTP sent: ${otp}`);
-      setTimeout(() => setCurrentPage('otp'), 2000);
     };
 
     return (
@@ -551,6 +583,10 @@ const PenumudiesApp = () => {
               <input type="tel" placeholder="Mobile Number" value={mobile} onChange={(e) => setMobile(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black" />
             </div>
             <div className="relative">
+              <User className="absolute left-3 top-3 text-gray-400" size={20} />
+              <input type="text" placeholder="Full Name" value={name} onChange={(e) => setName(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black" />
+            </div>
+            <div className="relative">
               <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
               <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black" />
             </div>
@@ -558,7 +594,7 @@ const PenumudiesApp = () => {
               <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
               <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black" />
             </div>
-            <button onClick={handleSignUp} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Send OTP</button>
+            <button onClick={handleSignUp} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Create Account</button>
           </div>
 
           <div className="mt-6 text-center">
