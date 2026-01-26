@@ -44,18 +44,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Generate token
+    const token = 'token_' + user._id?.toString();
+
     // Return user data (without password)
-    const response = {
+    return NextResponse.json({
+      success: true,
       message: 'Login successful',
       user: {
+        id: user._id?.toString(),
         mobile: user.mobile,
         name: user.name,
-        token: user.token || 'token_' + user.mobile,
-        id: user._id?.toString()
+        token: token,
       }
-    };
-
-    return NextResponse.json(response, { status: 200 });
+    }, { status: 200 });
 
   } catch (error: any) {
     console.error('Login error:', error);

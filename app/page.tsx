@@ -89,10 +89,57 @@ const PenumudiesApp = () => {
   const [processingOrder, setProcessingOrder] = useState<boolean>(false);
   const [showAccountMenu, setShowAccountMenu] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
+  const [showAdminLogoutConfirm, setShowAdminLogoutConfirm] = useState<boolean>(false);
   const [searchPage, setSearchPage] = useState<boolean>(false);
   const [searchPageQuery, setSearchPageQuery] = useState<string>('');
+  const [showRazorpayModal, setShowRazorpayModal] = useState<boolean>(false);
+  const [razorpayOrderId, setRazorpayOrderId] = useState<string>('');
+  const [razorpayAmount, setRazorpayAmount] = useState<number>(0);
+  const [showTracking, setShowTracking] = useState<boolean>(false);
+  
+  // Admin Panel State
+  const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(false);
+  const [adminToken, setAdminToken] = useState<string>('');
+  const [adminUsername, setAdminUsername] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
+  const [adminAuthError, setAdminAuthError] = useState<string>('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editPrice, setEditPrice] = useState<string>('');
+  const [editStock, setEditStock] = useState<string>('');
+  const [adminLoading, setAdminLoading] = useState<boolean>(false);
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState<boolean>(false);
+  
+  // Admin - Add Product Form
+  const [showAddProductForm, setShowAddProductForm] = useState<boolean>(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    brand: '',
+    price: '',
+    oldPrice: '',
+    stock: '',
+    category: 'Dairy',
+    image: '',
+    popular: false,
+    deliveryTime: '30 mins',
+    description: '',
+  });
+  
+  // Admin - Order Management
+  const [adminOrders, setAdminOrders] = useState<any[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [orderStatus, setOrderStatus] = useState<string>('');
+  const [orderNotes, setOrderNotes] = useState<string>('');
+  const [deliveryPartner, setDeliveryPartner] = useState<string>('');
+  const [deliveryPartnerPhone, setDeliveryPartnerPhone] = useState<string>('');
+  const [currentLat, setCurrentLat] = useState<string>('');
+  const [currentLng, setCurrentLng] = useState<string>('');
+  const [trackingMessage, setTrackingMessage] = useState<string>('');
+  const [adminActiveTab, setAdminActiveTab] = useState<string>('products');
+  const [isEditingAdminOrder, setIsEditingAdminOrder] = useState<boolean>(false);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
   // Auto-dismiss login success message after 2 seconds
@@ -109,7 +156,7 @@ const PenumudiesApp = () => {
   }, [showLoginSuccess]);
 
   // Product Database
-  const productDatabase = [
+  const defaultProductDatabase: Product[] = [
     { id: 1, name: 'Amul Fresh Milk', brand: 'Amul', price: 62, oldPrice: 65, stock: 150, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
     { id: 2, name: 'Mother Dairy Milk 1L', brand: 'Mother Dairy', price: 60, oldPrice: 65, stock: 200, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
     { id: 3, name: 'Britannia Bread', brand: 'Britannia', price: 45, oldPrice: 50, stock: 80, category: 'Bakery', image: '🍞', popular: true, deliveryTime: '10 mins' },
@@ -121,18 +168,20 @@ const PenumudiesApp = () => {
     { id: 9, name: 'Dettol Handwash', brand: 'Dettol', price: 95, oldPrice: 110, stock: 70, category: 'Personal Care', image: '🧼', popular: true, deliveryTime: '15 mins' },
     { id: 10, name: 'Organic Bananas 1kg', brand: 'Fresh', price: 55, oldPrice: 60, stock: 120, category: 'Fruits', image: '🍌', popular: true, deliveryTime: '8 mins' },
   ];
+  
+  const productDatabase = products.length > 0 ? products : defaultProductDatabase;
 
   const categories = ['All', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Instant Food', 'Personal Care', 'Fruits'];
 
   const deliverySlots = [
     { id: 1, label: 'Today, 2:00 PM - 4:00 PM', available: true },
     { id: 2, label: 'Today, 4:00 PM - 6:00 PM', available: true },
-    { id: 3, label: 'Today, 6:00 PM - 8:00 PM', available: false },
+    { id: 3, label: 'Today, 6:00 PM - 8:00 PM', available: true },
     { id: 4, label: 'Tomorrow, 8:00 AM - 10:00 AM', available: true },
   ];
 
   // Search System
-  const performSearch = useCallback((query: string) => {
+  const performSearch = useCallback((query: string, searchProducts: Product[]) => {
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -142,7 +191,8 @@ const PenumudiesApp = () => {
     const typoMap: { [key: string]: string } = { 'mlk': 'milk', 'buter': 'butter', 'bred': 'bread' };
     const correctedQuery = typoMap[lowerQuery] || lowerQuery;
     
-    let results = productDatabase.filter(product => {
+    const searchDatabase = searchProducts.length > 0 ? searchProducts : defaultProductDatabase;
+    let results = searchDatabase.filter(product => {
       const nameMatch = product.name.toLowerCase().includes(correctedQuery);
       const brandMatch = product.brand.toLowerCase().includes(correctedQuery);
       const categoryMatch = product.category.toLowerCase().includes(correctedQuery);
@@ -162,8 +212,9 @@ const PenumudiesApp = () => {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      performSearch(searchQuery);
+      performSearch(searchQuery, products);
     }, 300);
+
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
 
@@ -259,6 +310,72 @@ const PenumudiesApp = () => {
     }
     setIsEditingName(false);
   };
+
+  // Load Products on Mount
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const response = await fetch('/api/products/update');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.products && data.products.length > 0) {
+            setProducts(data.products);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load products:', err);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  // Load Orders on Mount
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        const response = await fetch('/api/orders/manage');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.orders && data.orders.length > 0) {
+            // Set both user orders and admin orders
+            setOrders(data.orders);
+            setAdminOrders(data.orders);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+      }
+    };
+    loadOrders();
+  }, []);
+
+  // Real-time Orders Sync - Refresh every 5 seconds when admin panel is open
+  useEffect(() => {
+    if ((currentPage !== 'admin' && currentPage !== 'orders') || showTracking || isEditingAdminOrder || !adminLoggedIn || showAddProductForm) return; // Don't refresh while tracking modal, editing order, admin not logged in, or adding product
+
+    const interval = setInterval(async () => {
+      try {
+        let url = '/api/orders/manage';
+        // If user is viewing their orders, filter by their mobile
+        if (currentPage === 'orders' && currentUser?.mobile) {
+          url += `?userMobile=${currentUser.mobile}`;
+        }
+        
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.orders) {
+            setOrders(data.orders);
+            setAdminOrders(data.orders);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to refresh orders:', err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [currentPage, currentUser ? currentUser.mobile : null, showTracking, isEditingAdminOrder, adminLoggedIn, showAddProductForm]);
 
   // Cart Management
   useEffect(() => {
@@ -485,10 +602,15 @@ const PenumudiesApp = () => {
             </button>
           </div>
 
-          <div className="mt-6 text-center">
-            <button onClick={() => setCurrentPage('signup')} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+          <div className="mt-6 text-center space-y-3">
+            <button onClick={() => setCurrentPage('signup')} className="text-blue-600 hover:text-blue-700 text-sm font-medium block w-full">
               Create an account
             </button>
+            <div className="border-t pt-3">
+              <button onClick={() => setCurrentPage('admin')} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 transition text-sm">
+                🔐 Admin Panel
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -685,7 +807,8 @@ const PenumudiesApp = () => {
     const activeCart = currentUser ? cart : guestCart;
     const activeWishlist = currentUser ? wishlist : guestWishlist;
 
-    const filteredProducts = productDatabase.filter(product => {
+    const searchDatabase = products.length > 0 ? products : defaultProductDatabase;
+    const filteredProducts = searchDatabase.filter(product => {
       return selectedCategory === 'All' || product.category === selectedCategory;
     }).sort((a, b) => {
       if (sortBy === 'popular') return b.popular ? 1 : -1;
@@ -704,7 +827,7 @@ const PenumudiesApp = () => {
                 <span className="font-bold text-xl text-gray-800 hidden sm:block">Penumudies</span>
               </div>
 
-              <div className="flex-1 max-w-2xl relative">
+              <div className="flex-1 max-w-2xl relative" ref={searchDropdownRef}>
                 <div className="relative">
                   <Search className="absolute left-3 top-3 text-gray-500" size={20} />
                   <input
@@ -712,15 +835,28 @@ const PenumudiesApp = () => {
                     type="text"
                     placeholder="Search products..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setShowSearchDropdown(true)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSearchDropdownOpen(true);
+                    }}
+                    onFocus={() => {
+                      setSearchDropdownOpen(true);
+                    }}
+                    onBlur={(e) => {
+                      // Delay closing to allow click on dropdown items
+                      setTimeout(() => {
+                        if (!searchDropdownRef.current?.contains(document.activeElement)) {
+                          setSearchDropdownOpen(false);
+                        }
+                      }, 100);
+                    }}
                     onKeyPress={(e) => e.key === 'Enter' && handleSearchSubmit()}
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-black text-black"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 text-black transition"
                   />
                 </div>
 
-                {showSearchDropdown && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
+                {searchDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-lg shadow-xl max-h-96 overflow-y-auto z-50" onMouseDown={(e) => e.preventDefault()}>
                     {searchQuery === '' ? (
                       <div className="p-4">
                         <div className="text-sm text-gray-600 mb-2 font-semibold">Trending</div>
@@ -730,8 +866,7 @@ const PenumudiesApp = () => {
                             onClick={() => { 
                               setSearchQuery(trend); 
                               setSearchPageQuery(trend);
-                              performSearch(trend); 
-                              setShowSearchDropdown(false);
+                              setSearchDropdownOpen(false);
                               setCurrentPage('search');
                             }}
                             className="block w-full text-left px-3 py-2 hover:bg-gray-50 rounded text-sm"
@@ -747,7 +882,7 @@ const PenumudiesApp = () => {
                             key={product.id}
                             className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
                             onClick={() => { 
-                              setShowSearchDropdown(false); 
+                              setSearchDropdownOpen(false); 
                               setSearchPageQuery(searchQuery);
                               setCurrentPage('search');
                             }}
@@ -763,7 +898,7 @@ const PenumudiesApp = () => {
                         {searchResults.length > 5 && (
                           <button
                             onClick={() => {
-                              setShowSearchDropdown(false);
+                              setSearchDropdownOpen(false);
                               setSearchPageQuery(searchQuery);
                               setCurrentPage('search');
                             }}
@@ -986,8 +1121,8 @@ const PenumudiesApp = () => {
 
         {/* Cart Panel */}
         {showCart && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowCart(false)}>
-            <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50" onClick={() => setShowCart(false)}>
+            <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Cart ({activeCart.reduce((s, i) => s + i.quantity, 0)})</h2>
                 <button onClick={() => setShowCart(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -1073,8 +1208,8 @@ const PenumudiesApp = () => {
 
         {/* Wishlist Panel */}
         {showWishlist && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowWishlist(false)}>
-            <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50" onClick={() => setShowWishlist(false)}>
+            <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
               <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold">Wishlist ({activeWishlist.length})</h2>
                 <button onClick={() => setShowWishlist(false)} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -1152,8 +1287,8 @@ const PenumudiesApp = () => {
 
         {/* Logout Confirmation */}
         {showLogoutConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-2 border-gray-200">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Confirm Logout</h2>
               <p className="text-gray-600 mb-6">Are you sure you want to logout?</p>
               <div className="flex gap-3">
@@ -1183,7 +1318,7 @@ const PenumudiesApp = () => {
     const activeWishlist = currentUser ? wishlist : guestWishlist;
 
     React.useEffect(() => {
-      performSearch(searchPageQuery);
+      setSearchQuery(searchPageQuery);
     }, [searchPageQuery]);
 
     return (
@@ -1295,24 +1430,101 @@ const PenumudiesApp = () => {
   const ProfilePage = () => {
     const [newAddress, setNewAddress] = useState({ name: '', phone: '', address: '', pincode: '', city: '' });
 
-    const handleAddAddress = () => {
+    // Fetch addresses from database when profile loads
+    useEffect(() => {
+      const fetchAddresses = async () => {
+        if (!currentUser?.mobile) return;
+        
+        try {
+          const response = await fetch(`/api/addresses?userMobile=${currentUser.mobile}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.addresses && Array.isArray(data.addresses)) {
+              // Map database addresses to local format
+              const mappedAddresses = data.addresses.map((addr: any) => ({
+                id: addr._id,
+                name: addr.name,
+                phone: addr.phone,
+                address: addr.address,
+                city: addr.city,
+                pincode: addr.pincode,
+              }));
+              setAddresses(mappedAddresses);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching addresses:', err);
+        }
+      };
+
+      fetchAddresses();
+    }, [currentUser?.mobile]);
+
+    const handleAddAddress = async () => {
       if (!newAddress.name || !newAddress.phone || !newAddress.address || !newAddress.pincode || !newAddress.city) {
         setError('Please fill all fields');
         setTimeout(() => setError(''), 3000);
         return;
       }
 
-      const address: Address = { ...newAddress, id: Date.now() };
-      setAddresses([...addresses, address]);
-      setNewAddress({ name: '', phone: '', address: '', pincode: '', city: '' });
-      setSuccess('Address added successfully');
-      setTimeout(() => setSuccess(''), 2000);
+      try {
+        // Save address to database
+        const response = await fetch('/api/addresses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userMobile: currentUser?.mobile,
+            name: newAddress.name,
+            phone: newAddress.phone,
+            address: newAddress.address,
+            pincode: newAddress.pincode,
+            city: newAddress.city,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to save address');
+        }
+
+        const result = await response.json();
+        
+        // Add address to local state with the database ID
+        const address: Address = { 
+          ...newAddress, 
+          id: result.address._id 
+        };
+        setAddresses([...addresses, address]);
+        setNewAddress({ name: '', phone: '', address: '', pincode: '', city: '' });
+        setSuccess('Address added successfully and saved to database');
+        setTimeout(() => setSuccess(''), 2000);
+      } catch (err) {
+        console.error('Error saving address:', err);
+        setError(err instanceof Error ? err.message : 'Failed to save address');
+        setTimeout(() => setError(''), 3000);
+      }
     };
 
-    const handleDeleteAddress = (addressId: string | number) => {
-      setAddresses(addresses.filter(addr => addr.id !== addressId));
-      setSuccess('Address deleted');
-      setTimeout(() => setSuccess(''), 2000);
+    const handleDeleteAddress = async (addressId: string | number) => {
+      try {
+        const response = await fetch(`/api/addresses?addressId=${addressId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete address');
+        }
+
+        setAddresses(addresses.filter(addr => addr.id !== addressId));
+        setSuccess('Address deleted');
+        setTimeout(() => setSuccess(''), 2000);
+      } catch (err) {
+        console.error('Error deleting address:', err);
+        setError('Failed to delete address');
+        setTimeout(() => setError(''), 3000);
+      }
     };
 
     return (
@@ -1390,91 +1602,39 @@ const PenumudiesApp = () => {
             </div>
 
             <div className="md:col-span-2 bg-white rounded-lg shadow-sm p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-800">My Addresses</h2>
-                <button
-                  onClick={() => setShowAddAddress(!showAddAddress)}
-                  className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-                >
-                  + Add New Address
-                </button>
-              </div>
-
-              {showAddAddress && (
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-3">
-                  <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={newAddress.name}
-                    onChange={(e) => setNewAddress({...newAddress, name: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-                  />
-                  <input
-                    type="tel"
-                    placeholder="Phone Number"
-                    value={newAddress.phone}
-                    onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Complete Address"
-                    value={newAddress.address}
-                    onChange={(e) => setNewAddress({...newAddress, address: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      placeholder="Pincode"
-                      value={newAddress.pincode}
-                      onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-                    />
-                    <input
-                      type="text"
-                      placeholder="City"
-                      value={newAddress.city}
-                      onChange={(e) => setNewAddress({...newAddress, city: e.target.value})}
-                      className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-                    />
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">📋 Account Information</h2>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Mobile Number</label>
+                      <div className="text-lg text-gray-800 font-semibold">{currentUser?.mobile}</div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Account Status</label>
+                      <div className="text-lg text-green-600 font-semibold">✅ Active</div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="border-t pt-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">🚀 Quick Actions</h2>
                   <button
-                    onClick={handleAddAddress}
-                    className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700"
+                    onClick={() => setCurrentPage('orders')}
+                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2"
                   >
-                    Save Address
+                    <Package size={20} />
+                    View My Orders
                   </button>
                 </div>
-              )}
 
-              {addresses.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <MapPin size={48} className="mx-auto mb-3 text-gray-300" />
-                  <p>No addresses saved yet</p>
+                <div className="border-t pt-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">📍 Note</h2>
+                  <p className="text-gray-600 text-sm">
+                    Addresses can be added during checkout. You can save multiple delivery addresses for quick checkout next time.
+                  </p>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {addresses.map(addr => (
-                    <div key={addr.id} className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-300 transition">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-semibold text-gray-800">{addr.name}</div>
-                          <div className="text-sm text-gray-600">{addr.phone}</div>
-                          <div className="text-sm text-gray-600 mt-1">{addr.address}</div>
-                          <div className="text-sm text-gray-600">{addr.city} - {addr.pincode}</div>
-                        </div>
-                        <button
-                          onClick={() => handleDeleteAddress(addr.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -1503,7 +1663,161 @@ const PenumudiesApp = () => {
       setTimeout(() => setSuccess(''), 2000);
     };
 
-    const handlePlaceOrder = () => {
+    const loadRazorpayScript = () => {
+      return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+        document.body.appendChild(script);
+      });
+    };
+
+    const handleInitiateRazorpayPayment = async () => {
+      if (!selectedAddress) {
+        setError('Select delivery address');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+
+      if (!selectedSlot) {
+        setError('Select delivery slot');
+        setTimeout(() => setError(''), 3000);
+        return;
+      }
+
+      if (paymentMethod !== 'UPI') {
+        handlePlaceOrder();
+        return;
+      }
+
+      setProcessingOrder(true);
+      setError('');
+
+      try {
+        const total = calculateCartTotal().total;
+        const orderId = `ORD${Date.now()}`;
+
+        // Create order on server
+        const response = await fetch('/api/orders/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: total,
+            orderId,
+            customerName: currentUser?.name || 'Guest',
+            customerEmail: 'customer@penumudies.com',
+            customerPhone: currentUser?.mobile || '9999999999',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create order');
+        }
+
+        if (!data.orderId) {
+          console.error('Missing orderId in response:', data);
+          throw new Error('Failed to create order - Invalid response');
+        }
+
+        // Load Razorpay script
+        const res = await loadRazorpayScript();
+        if (!res) {
+          throw new Error('Razorpay script failed to load');
+        }
+
+        // Show Razorpay payment modal
+        const options = {
+          key: data.key,
+          amount: data.amount,
+          currency: data.currency,
+          order_id: data.orderId,
+          handler: async (response: any) => {
+            try {
+              // Verify payment
+              const verifyResponse = await fetch('/api/orders/verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                }),
+              });
+
+              const verifyData = await verifyResponse.json();
+
+              if (verifyData.success) {
+                // Create order in app
+                const order = {
+                  id: orderId,
+                  userId: currentUser?.id,
+                  items: activeCart,
+                  address: addresses.find(a => a.id === selectedAddress),
+                  slot: deliverySlots.find((s: any) => s.id === selectedSlot),
+                  paymentMethod,
+                  paymentId: response.razorpay_payment_id,
+                  total: calculateCartTotal().total,
+                  status: 'Paid',
+                  createdAt: new Date().toISOString()
+                };
+
+                setOrders([...orders, order]);
+                refreshAdminOrders(); // Refresh admin panel immediately with new order
+                if (currentUser) {
+                  setCart([]);
+                } else {
+                  setGuestCart([]);
+                }
+
+                setProcessingOrder(false);
+                setSuccess('Payment successful! Order placed.');
+                setTimeout(() => {
+                  setSuccess('');
+                  setCurrentPage('orders');
+                }, 2000);
+              } else {
+                setError('Payment verification failed');
+                setProcessingOrder(false);
+              }
+            } catch (err) {
+              setError('Payment verification error');
+              setProcessingOrder(false);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              // User closed/cancelled the payment modal
+              setProcessingOrder(false);
+              setError('Payment cancelled by user');
+              setTimeout(() => setError(''), 3000);
+            },
+          },
+          prefill: {
+            name: currentUser?.name || 'Guest',
+            contact: currentUser?.mobile || '9999999999',
+          },
+          notes: {
+            address: addresses.find(a => a.id === selectedAddress)?.address,
+          },
+          theme: {
+            color: '#3b82f6',
+          },
+        };
+
+        const paymentObject = new (window as any).Razorpay(options);
+        paymentObject.open();
+      } catch (error: any) {
+        console.error('Payment error:', error);
+        const errorMessage = error?.message || 'Failed to initiate payment';
+        setError(errorMessage);
+        setProcessingOrder(false);
+      }
+    };
+
+    const handlePlaceOrder = async () => {
       if (!selectedAddress) {
         setError('Select delivery address');
         setTimeout(() => setError(''), 3000);
@@ -1518,21 +1832,59 @@ const PenumudiesApp = () => {
 
       setProcessingOrder(true);
 
-      setTimeout(() => {
+      try {
         const orderId = `ORD${Date.now()}`;
-        const order = {
-          id: orderId,
+        const addressData = addresses.find(a => a.id === selectedAddress);
+        const slotData = deliverySlots.find((s: any) => s.id === selectedSlot);
+
+        // Prepare order data for API
+        const orderPayload = {
+          orderId,
           userId: currentUser?.id,
-          items: activeCart,
-          address: addresses.find(a => a.id === selectedAddress),
-          slot: deliverySlots.find((s: any) => s.id === selectedSlot),
-          paymentMethod,
+          userMobile: currentUser?.mobile || '',
+          userName: currentUser?.name || 'Guest',
+          items: activeCart.map(item => ({
+            productId: item.id,
+            name: item.name,
+            brand: item.brand,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          })),
+          address: {
+            name: addressData?.name,
+            phone: addressData?.phone,
+            address: addressData?.address,
+            city: addressData?.city,
+            pincode: addressData?.pincode,
+          },
+          deliverySlot: {
+            id: slotData?.id,
+            label: slotData?.label,
+          },
+          paymentMethod: paymentMethod || 'COD',
           total: calculateCartTotal().total,
-          status: 'Confirmed',
-          createdAt: new Date().toISOString()
+          status: 'Pending',
         };
 
-        setOrders([...orders, order]);
+        // Send order to database
+        const response = await fetch('/api/orders/manage', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(orderPayload),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to place order');
+        }
+
+        const result = await response.json();
+
+        // Update local state and clear cart
+        setOrders([...orders, result.order]);
         if (currentUser) {
           setCart([]);
         } else {
@@ -1540,12 +1892,21 @@ const PenumudiesApp = () => {
         }
 
         setProcessingOrder(false);
-        setSuccess('Order placed!');
+        setSuccess('Order placed successfully!');
+        
+        // Refresh both user and admin orders
+        await fetchOrders();
+        
         setTimeout(() => {
           setSuccess('');
           setCurrentPage('orders');
-        }, 2000);
-      }, 2000);
+        }, 1500);
+      } catch (error) {
+        console.error('Error placing order:', error);
+        setError(error instanceof Error ? error.message : 'Failed to place order');
+        setProcessingOrder(false);
+        setTimeout(() => setError(''), 3000);
+      }
     };
 
     return (
@@ -1561,38 +1922,103 @@ const PenumudiesApp = () => {
             <div className="md:col-span-2 space-y-6">
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold">Delivery Address</h2>
-                  <button onClick={() => setShowAddAddress(!showAddAddress)} className="text-blue-600 text-sm">+ Add New</button>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    📍 Delivery Address
+                  </h2>
+                  <button 
+                    onClick={() => setShowAddAddress(!showAddAddress)} 
+                    className="bg-blue-600 text-white text-sm px-3 py-1 rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    {showAddAddress ? '✕ Cancel' : '+ Add New Address'}
+                  </button>
                 </div>
 
                 {showAddAddress && (
-                  <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3">
-                    <input type="text" placeholder="Name" value={newAddress.name} onChange={(e) => setNewAddress({...newAddress, name: e.target.value})} className="w-full px-3 py-2 border rounded-lg placeholder:text-black text-black" />
-                    <input type="tel" placeholder="Phone" value={newAddress.phone} onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})} className="w-full px-3 py-2 border rounded-lg placeholder:text-black text-black" />
-                    <input type="text" placeholder="Address" value={newAddress.address} onChange={(e) => setNewAddress({...newAddress, address: e.target.value})} className="w-full px-3 py-2 border rounded-lg placeholder:text-black text-black" />
+                  <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200 space-y-3">
+                    <h3 className="font-semibold text-gray-800 mb-4">Add New Delivery Address</h3>
+                    <input 
+                      type="text" 
+                      placeholder="Full Name *" 
+                      value={newAddress.name} 
+                      onChange={(e) => setNewAddress({...newAddress, name: e.target.value})} 
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-gray-400 text-black" 
+                    />
+                    <input 
+                      type="tel" 
+                      placeholder="Phone Number *" 
+                      value={newAddress.phone} 
+                      onChange={(e) => setNewAddress({...newAddress, phone: e.target.value})} 
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-gray-400 text-black" 
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Complete Address *" 
+                      value={newAddress.address} 
+                      onChange={(e) => setNewAddress({...newAddress, address: e.target.value})} 
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-gray-400 text-black" 
+                    />
                     <div className="grid grid-cols-2 gap-3">
-                      <input type="text" placeholder="Pincode" value={newAddress.pincode} onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})} className="px-3 py-2 border rounded-lg placeholder:text-black text-black" />
-                      <input type="text" placeholder="City" value={newAddress.city} onChange={(e) => setNewAddress({...newAddress, city: e.target.value})} className="px-3 py-2 border rounded-lg placeholder:text-black text-black" />
+                      <input 
+                        type="text" 
+                        placeholder="Pincode *" 
+                        value={newAddress.pincode} 
+                        onChange={(e) => setNewAddress({...newAddress, pincode: e.target.value})} 
+                        className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-gray-400 text-black" 
+                      />
+                      <input 
+                        type="text" 
+                        placeholder="City *" 
+                        value={newAddress.city} 
+                        onChange={(e) => setNewAddress({...newAddress, city: e.target.value})} 
+                        className="px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 placeholder:text-gray-400 text-black" 
+                      />
                     </div>
-                    <button onClick={handleAddAddress} className="w-full bg-blue-600 text-white py-2 rounded-lg">Save Address</button>
+                    <div className="flex gap-3 pt-2">
+                      <button 
+                        onClick={handleAddAddress} 
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700"
+                      >
+                        ✓ Save Address
+                      </button>
+                      <button 
+                        onClick={() => setShowAddAddress(false)} 
+                        className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold hover:bg-gray-400"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {addresses.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No addresses. Add one.</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
+                    <MapPin size={40} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-gray-600 font-medium">No addresses added yet</p>
+                    <p className="text-gray-500 text-sm">Add your first delivery address above</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {addresses.map(addr => (
                       <div
                         key={addr.id}
                         onClick={() => setSelectedAddress(addr.id)}
-                        className={`p-4 border-2 rounded-lg cursor-pointer ${
-                          selectedAddress === addr.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
+                        className={`p-4 border-2 rounded-lg cursor-pointer transition ${
+                          selectedAddress === addr.id 
+                            ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200' 
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
-                        <div className="font-semibold">{addr.name}</div>
-                        <div className="text-sm text-gray-600">{addr.phone}</div>
-                        <div className="text-sm text-gray-600">{addr.address}, {addr.city} - {addr.pincode}</div>
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl">
+                            {selectedAddress === addr.id ? '✓' : '📍'}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-800">{addr.name}</div>
+                            <div className="text-sm text-gray-600">{addr.phone}</div>
+                            <div className="text-sm text-gray-600 mt-1">{addr.address}</div>
+                            <div className="text-sm text-gray-600">{addr.city} - {addr.pincode}</div>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1624,11 +2050,14 @@ const PenumudiesApp = () => {
                     <button
                       key={method}
                       onClick={() => setPaymentMethod(method)}
-                      className={`w-full p-4 border-2 rounded-lg text-left ${
+                      className={`w-full p-4 border-2 rounded-lg text-left flex items-center justify-between ${
                         paymentMethod === method ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
                       }`}
                     >
-                      {method}
+                      <span className="font-medium">{method}</span>
+                      {method === 'UPI' && paymentMethod === method && (
+                        <span className="text-xs bg-green-500 text-white px-3 py-1 rounded-full">Powered by Razorpay</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1671,7 +2100,7 @@ const PenumudiesApp = () => {
               </div>
 
               <button
-                onClick={handlePlaceOrder}
+                onClick={handleInitiateRazorpayPayment}
                 disabled={processingOrder}
                 className={`w-full mt-6 py-3 rounded-lg font-semibold ${
                   processingOrder ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700 text-white'
@@ -1688,57 +2117,289 @@ const PenumudiesApp = () => {
 
   // Orders Page
   const OrdersPage = () => {
+    const [selectedOrder, setSelectedOrder] = useState<any>(null);
+
+    const getStatusColor = (status: string) => {
+      const colors: { [key: string]: string } = {
+        'Pending': 'bg-yellow-100 text-yellow-800',
+        'Confirmed': 'bg-blue-100 text-blue-800',
+        'Processing': 'bg-purple-100 text-purple-800',
+        'Packed': 'bg-indigo-100 text-indigo-800',
+        'Shipped': 'bg-cyan-100 text-cyan-800',
+        'Out for Delivery': 'bg-orange-100 text-orange-800',
+        'Delivered': 'bg-green-100 text-green-800',
+        'Cancelled': 'bg-red-100 text-red-800',
+        'Paid': 'bg-green-100 text-green-800',
+      };
+      return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const getStatusIcon = (status: string) => {
+      const icons: { [key: string]: string } = {
+        'Pending': '⏳',
+        'Confirmed': '✓',
+        'Processing': '⚙️',
+        'Packed': '📦',
+        'Shipped': '🚚',
+        'Out for Delivery': '📍',
+        'Delivered': '🎉',
+        'Cancelled': '❌',
+        'Paid': '✓',
+      };
+      return icons[status] || '📋';
+    };
+
+    // Real-time Orders Sync - Refresh every 5 seconds to get admin's tracking updates
+    useEffect(() => {
+      if (!currentUser || currentPage !== 'orders' || showTracking) return; // Don't refresh while tracking is open
+
+      const interval = setInterval(async () => {
+        try {
+          // Fetch only current user's orders
+          const url = currentUser?.mobile ? `/api/orders/manage?userMobile=${currentUser.mobile}` : '/api/orders/manage';
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.orders) {
+              // Update user's orders with latest data from DB
+              setOrders(data.orders);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to refresh user orders:', err);
+        }
+      }, 5000); // Refresh every 5 seconds
+
+      return () => clearInterval(interval);
+    }, [currentPage, currentUser, showTracking]);
+
+    // Real-time tracking updates - refresh selected order while tracking modal is open
+    useEffect(() => {
+      if (!currentUser || currentPage !== 'orders' || !showTracking || !selectedOrder) return; // Only refresh while tracking modal is open
+
+      const interval = setInterval(async () => {
+        try {
+          // Fetch only current user's orders to get the latest data
+          const url = currentUser?.mobile ? `/api/orders/manage?userMobile=${currentUser.mobile}` : '/api/orders/manage';
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.orders) {
+              // Find and update the selected order with latest data
+              const updatedOrder = data.orders.find(o => o.orderId === selectedOrder.orderId);
+              if (updatedOrder) {
+                setSelectedOrder(updatedOrder);
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Failed to refresh tracking order:', err);
+        }
+      }, 3000); // Refresh every 3 seconds while tracking is open
+
+      return () => clearInterval(interval);
+    }, [currentPage, currentUser, showTracking]);
+
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 py-8">
-          <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6">← Back</button>
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6 hover:text-blue-700">← Back</button>
 
-          <h1 className="text-3xl font-bold mb-8">My Orders</h1>
+          <h1 className="text-3xl font-bold mb-8">📦 My Orders</h1>
 
           {orders.length === 0 ? (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <Package size={64} className="mx-auto text-gray-300 mb-4" />
               <p className="text-gray-500 mb-4">No orders yet</p>
-              <button onClick={() => setCurrentPage('home')} className="bg-blue-600 text-white px-6 py-2 rounded-lg">
+              <button onClick={() => setCurrentPage('home')} className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
                 Start Shopping
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {orders.map(order => (
-                <div key={order.id} className="bg-white rounded-lg shadow-sm p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <div className="font-bold text-lg">Order #{order.id}</div>
-                      <div className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleString()}</div>
-                    </div>
-                    <div className="px-4 py-2 rounded-full text-sm font-semibold bg-green-100 text-green-700">
-                      {order.status}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 mb-4">
-                    {order.items.map((item: CartItem) => (
-                      <div key={item.productId} className="flex items-center gap-3 text-sm">
-                        <div className="text-2xl">{item.image}</div>
-                        <div className="flex-1">{item.name} x {item.quantity}</div>
-                        <div className="font-semibold">₹{item.price * item.quantity}</div>
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Orders List */}
+              <div className="md:col-span-2 space-y-4">
+                {orders.map(order => (
+                  <div 
+                    key={order.orderId || order.id}
+                    onClick={() => {
+                      setSelectedOrder(order);
+                      setShowTracking(true);
+                    }}
+                    className="bg-white rounded-lg shadow-sm p-6 cursor-pointer hover:shadow-md transition border-l-4 border-blue-600"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="font-bold text-lg">Order #{(order.orderId || order.id).slice(-8)}</div>
+                        <div className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</div>
                       </div>
-                    ))}
+                      <div className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>
+                        {getStatusIcon(order.status)} {order.status}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-4">
+                      {order.items.map((item: any) => (
+                        <div key={item.productId} className="flex items-center gap-3 text-sm">
+                          <div className="text-2xl">{item.image}</div>
+                          <div className="flex-1">
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-gray-500">Qty: {item.quantity}</div>
+                          </div>
+                          <div className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t pt-4 grid grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <div className="text-gray-600">Total</div>
+                        <div className="text-lg font-bold text-blue-600">₹{order.total.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Payment</div>
+                        <div className="font-medium">{order.paymentMethod}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-600">Delivery</div>
+                        <div className="font-medium">{order.address?.city || 'N/A'}</div>
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedOrder(order);
+                        setShowTracking(true);
+                      }}
+                      className="w-full mt-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium text-sm"
+                    >
+                      📍 Track Order
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Order Tracking Details */}
+              {selectedOrder && showTracking && (
+                <div className="bg-white rounded-lg shadow-lg p-6 h-fit sticky top-4">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold">📍 Order Tracking</h2>
+                    <button 
+                      onClick={() => setShowTracking(false)}
+                      className="text-gray-500 hover:text-gray-700 text-2xl"
+                    >
+                      ✕
+                    </button>
                   </div>
 
-                  <div className="border-t pt-4 flex justify-between">
+                  {/* Order Info */}
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
                     <div className="text-sm">
-                      <div className="font-semibold">Address:</div>
-                      <div className="text-gray-600">{order.address.address}, {order.address.city}</div>
+                      <span className="text-gray-600">Order ID:</span>
+                      <span className="font-mono font-bold"> {(selectedOrder.orderId || selectedOrder.id).slice(-8)}</span>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-600">Total</div>
-                      <div className="text-2xl font-bold text-blue-600">₹{order.total.toFixed(2)}</div>
+                    <div className="text-sm">
+                      <span className="text-gray-600">Status: </span>
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${getStatusColor(selectedOrder.status)}`}>
+                        {getStatusIcon(selectedOrder.status)} {selectedOrder.status}
+                      </span>
+                    </div>
+                    <div className="text-sm">
+                      <span className="text-gray-600">Ordered:</span>
+                      <span className="ml-1">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Items Packing Status */}
+                  <div className="mb-6">
+                    <h3 className="font-bold text-gray-800 mb-3">📦 Items Status</h3>
+                    <div className="space-y-2">
+                      {selectedOrder.items.map((item: CartItem, idx: number) => {
+                        const packedStatuses = ['Packed', 'Shipped', 'Out for Delivery', 'Delivered'];
+                        const isPacked = packedStatuses.includes(selectedOrder.status);
+                        
+                        return (
+                          <div key={idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded">
+                            <div className="text-xl">{item.image}</div>
+                            <div className="flex-1 text-sm">
+                              <div className="font-medium">{item.name}</div>
+                              <div className="text-gray-500">Qty: {item.quantity}</div>
+                            </div>
+                            <div className={`text-xl ${isPacked ? '✓' : '⏳'}`}>
+                              {isPacked ? '✓' : '⏳'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Tracking Timeline */}
+                  <div>
+                    <h3 className="font-bold text-gray-800 mb-4">⏱️ Timeline</h3>
+                    <div className="relative space-y-4">
+                      {/* Status Points */}
+                      {(['Pending', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered']).map((status, idx) => {
+                        const isCompleted = (['Pending', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'].indexOf(status) <= ['Pending', 'Confirmed', 'Packed', 'Shipped', 'Out for Delivery', 'Delivered'].indexOf(selectedOrder.status));
+                        const isCurrent = status === selectedOrder.status;
+
+                        return (
+                          <div key={idx} className="flex gap-4">
+                            {/* Timeline Dot */}
+                            <div className="flex flex-col items-center">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                                isCurrent 
+                                  ? 'bg-blue-600 text-white scale-125' 
+                                  : isCompleted 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-gray-200 text-gray-400'
+                              }`}>
+                                {isCurrent ? '●' : isCompleted ? '✓' : '○'}
+                              </div>
+                              {idx < 5 && (
+                                <div className={`w-0.5 h-12 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                              )}
+                            </div>
+
+                            {/* Status Label */}
+                            <div className="flex-1 pt-1">
+                              <div className={`font-medium ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}`}>
+                                {getStatusIcon(status)} {status}
+                              </div>
+                              {isCurrent && (
+                                <div className="text-xs text-blue-600 font-semibold mt-1">Currently here →</div>
+                              )}
+                              {isCompleted && !isCurrent && (
+                                <div className="text-xs text-gray-500">✓ Completed</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Estimated Delivery */}
+                  <div className="mt-6 p-3 bg-green-50 border-l-4 border-green-500 rounded">
+                    <div className="text-xs text-gray-600">Estimated Delivery</div>
+                    <div className="font-bold text-green-700">
+                      {selectedOrder.status === 'Delivered' ? '✓ Delivered' : '📦 2 days from now'}
+                    </div>
+                  </div>
+
+                  {/* Delivery Address */}
+                  <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
+                    <div className="text-xs font-semibold text-gray-600 mb-2">📍 Delivery To</div>
+                    <div className="text-sm text-gray-800">
+                      {selectedOrder.address?.name || 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      {selectedOrder.address?.address}, {selectedOrder.address?.city} - {selectedOrder.address?.pincode}
                     </div>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -1748,8 +2409,12 @@ const PenumudiesApp = () => {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
-        setShowSearchDropdown(false);
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        // Only close if clicked outside search area completely
+        const target = e.target as HTMLElement;
+        if (!target.closest('input[placeholder="Search products..."]')) {
+          setSearchDropdownOpen(false);
+        }
       }
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
         setShowAccountMenu(false);
@@ -1758,6 +2423,1141 @@ const PenumudiesApp = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Admin Login Handler
+  const handleAdminLogin = async () => {
+    if (!adminUsername || !adminPassword) {
+      setAdminAuthError('Please enter username and password');
+      return;
+    }
+
+    setAdminLoading(true);
+    setAdminAuthError('');
+    try {
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: adminUsername, password: adminPassword }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setAdminAuthError(data.error || 'Login failed');
+        return;
+      }
+
+      const data = await response.json();
+      setAdminToken(data.token);
+      setAdminLoggedIn(true);
+      setAdminPassword('');
+      setSuccess('Admin login successful');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setAdminAuthError('Failed to login');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Admin Logout Handler
+  const handleAdminLogout = () => {
+    setAdminLoggedIn(false);
+    setAdminToken('');
+    setAdminUsername('');
+    setAdminPassword('');
+    setEditingProduct(null);
+    setShowAdminLogoutConfirm(false);
+    setCurrentPage('login');
+    setSuccess('Admin logged out successfully');
+    setTimeout(() => setSuccess(''), 2000);
+  };
+
+  // Fetch Products Handler
+  const fetchProducts = async () => {
+    try {
+      const response = await fetch('/api/products/update');
+      if (response.ok) {
+        const data = await response.json();
+        setProducts(data.products);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+    }
+  };
+
+  // Update Product Handler
+  const handleUpdateProduct = async () => {
+    if (!editingProduct || (!editPrice && !editStock)) {
+      setError('Please enter price or stock value');
+      return;
+    }
+
+    setAdminLoading(true);
+    setError(''); // Clear any previous errors
+    try {
+      const updateData: any = { id: editingProduct.id || editingProduct._id };
+      if (editPrice) updateData.price = parseFloat(editPrice);
+      if (editStock) updateData.stock = parseInt(editStock);
+
+      console.log('Sending update data:', updateData); // Debug log
+
+      const response = await fetch('/api/products/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Update failed');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Update products array with the new product data
+      const updatedProducts = products.map(p => 
+        (p.id === editingProduct.id || p._id === editingProduct._id) ? { ...data.product } : p
+      );
+      setProducts(updatedProducts);
+      
+      // Reset form
+      setEditingProduct(null);
+      setEditPrice('');
+      setEditStock('');
+      setSuccess('Product updated successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Update error:', err);
+      setError('Failed to update product. Please try again.');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Delete Product Handler
+  const handleDeleteProduct = async (productId: string | number) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
+
+    setAdminLoading(true);
+    setError(''); // Clear any previous errors
+    try {
+      const deleteData = { id: productId };
+      console.log('Sending delete data:', deleteData); // Debug log
+
+      const response = await fetch('/api/products/update', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deleteData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Delete failed');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Remove product from the products array
+      setProducts(products.filter(p => p.id !== productId && p._id !== productId));
+      setSuccess('Product deleted successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Delete error:', err);
+      setError('Failed to delete product. Please try again.');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Add New Product Handler
+  const handleAddProduct = async () => {
+    if (!newProduct.name || !newProduct.brand || !newProduct.price || !newProduct.oldPrice || !newProduct.image) {
+      setError('Please fill all required fields');
+      return;
+    }
+
+    setAdminLoading(true);
+    setError(''); // Clear any previous errors
+    try {
+      const response = await fetch('/api/products/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newProduct.name,
+          brand: newProduct.brand,
+          price: parseFloat(newProduct.price),
+          oldPrice: parseFloat(newProduct.oldPrice),
+          stock: parseInt(newProduct.stock) || 0,
+          category: newProduct.category,
+          image: newProduct.image,
+          popular: newProduct.popular,
+          deliveryTime: newProduct.deliveryTime,
+          description: newProduct.description,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Failed to add product');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Add the new product to the products array
+      setProducts([...products, { ...data.product }]);
+      
+      // Reset form
+      setNewProduct({
+        name: '',
+        brand: '',
+        price: '',
+        oldPrice: '',
+        stock: '',
+        category: 'Dairy',
+        image: '',
+        popular: false,
+        deliveryTime: '30 mins',
+        description: '',
+      });
+      setShowAddProductForm(false);
+      setSuccess('Product added successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Add product error:', err);
+      setError('Failed to add product. Please try again.');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Fetch Orders Handler
+  const fetchOrders = async () => {
+    setAdminLoading(true);
+    try {
+      // Fetch all orders for admin
+      const response = await fetch('/api/orders/manage');
+      if (response.ok) {
+        const data = await response.json();
+        setAdminOrders(data.orders);
+        setOrders(data.orders);
+      }
+    } catch (err) {
+      console.error('Failed to fetch orders:', err);
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Update Order Status Handler
+  const handleUpdateOrderStatus = async () => {
+    if (!selectedOrder || !orderStatus) {
+      setError('Select order and status');
+      return;
+    }
+
+    setAdminLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/orders/update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: selectedOrder.orderId,
+          status: orderStatus,
+          notes: orderNotes,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Update failed');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Update both admin orders and user orders arrays
+      const updatedOrders = adminOrders.map(o => o.orderId === selectedOrder.orderId ? data.order : o);
+      setAdminOrders(updatedOrders);
+      setOrders(updatedOrders);
+      
+      // Update the selected order so users tracking see the change immediately
+      setSelectedOrder(data.order);
+      
+      setSuccess('Order updated successfully');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Order update error:', err);
+      setError('Failed to update order');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleUpdateTracking = async () => {
+    if (!selectedOrder) {
+      setError('Select an order first');
+      return;
+    }
+
+    setAdminLoading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/orders/tracking', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: selectedOrder.orderId,
+          status: orderStatus || selectedOrder.status,
+          location: currentLat && currentLng ? {
+            latitude: parseFloat(currentLat),
+            longitude: parseFloat(currentLng),
+          } : undefined,
+          deliveryPartner: deliveryPartner ? {
+            name: deliveryPartner,
+            phone: deliveryPartnerPhone,
+          } : undefined,
+          message: trackingMessage,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || 'Tracking update failed');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Update both admin orders and user orders arrays
+      const updatedOrders = adminOrders.map(o => o.orderId === selectedOrder.orderId ? data.order : o);
+      setAdminOrders(updatedOrders);
+      setOrders(updatedOrders);
+      
+      // Update the selected order so users tracking see the change immediately
+      setSelectedOrder(data.order);
+      
+      setSuccess('Tracking updated successfully');
+      setCurrentLat('');
+      setCurrentLng('');
+      setTrackingMessage('');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      console.error('Tracking update error:', err);
+      setError('Failed to update tracking');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  // Refresh Admin Orders Function
+  const refreshAdminOrders = async () => {
+    try {
+      const response = await fetch('/api/orders/manage');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.orders) {
+          setAdminOrders(data.orders);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to refresh orders:', err);
+    }
+  };
+
+  // Admin Panel Component
+  const AdminPanel = () => {
+    if (!adminLoggedIn) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-8 max-w-md w-full">
+            <div className="text-center mb-8">
+              <div className="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">A</div>
+              <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+              <p className="text-gray-600 mt-2">Manage products and inventory</p>
+            </div>
+
+            {adminAuthError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
+                <AlertCircle size={18} />
+                {adminAuthError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                <input
+                  type="text"
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value)}
+                  placeholder="Enter username: admin"
+                  autoComplete="off"
+                  maxLength={100}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 placeholder:text-gray-700 text-gray-800 font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="Enter password: admin@123"
+                  autoComplete="off"
+                  maxLength={100}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 placeholder:text-gray-700 text-gray-800 font-medium"
+                />
+              </div>
+              <button
+                onClick={handleAdminLogin}
+                disabled={adminLoading}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium"
+              >
+                {adminLoading ? 'Loading...' : 'Login'}
+              </button>
+              <button
+                onClick={() => setCurrentPage('home')}
+                className="w-full text-gray-600 border border-gray-300 py-2 rounded-lg hover:bg-gray-50"
+              >
+                Back to Home
+              </button>
+            </div>
+
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-gray-600"><span className="font-semibold">Demo Credentials:</span></p>
+              <p className="text-sm text-gray-600">Username: <code className="bg-white px-2 py-1 rounded">admin</code></p>
+              <p className="text-sm text-gray-600">Password: <code className="bg-white px-2 py-1 rounded">admin@123</code></p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white sticky top-0 z-50 shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold">A</div>
+              <h1 className="text-2xl font-bold text-gray-800">Admin Panel</h1>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-gray-600">Welcome, Admin</span>
+              <button
+                onClick={() => setShowAdminLogoutConfirm(true)}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          {/* Admin Tabs */}
+          <div className="max-w-7xl mx-auto px-4 border-t">
+            <div className="flex gap-6">
+              <button
+                onClick={() => setAdminActiveTab('products')}
+                className={`py-3 px-4 font-medium border-b-2 transition ${
+                  adminActiveTab === 'products'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Package size={20} />
+                  Products
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  setAdminActiveTab('orders');
+                  fetchOrders();
+                }}
+                className={`py-3 px-4 font-medium border-b-2 transition ${
+                  adminActiveTab === 'orders'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <TrendingUp size={20} />
+                  Orders
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
+              <AlertCircle size={18} />
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
+              <Check size={18} />
+              {success}
+            </div>
+          )}
+
+          {/* Products Tab */}
+          {adminActiveTab === 'products' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Product List */}
+            <div className="lg:col-span-2">
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                  <Package size={24} />
+                  Products Inventory
+                </h2>
+
+                <div className="flex gap-3 mb-4">
+                  <button
+                    onClick={fetchProducts}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  >
+                    Refresh Products
+                  </button>
+                  <button
+                    onClick={() => setShowAddProductForm(!showAddProductForm)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+                  >
+                    <Plus size={18} />
+                    Add New Product
+                  </button>
+                </div>
+
+                {/* Add Product Form */}
+                {showAddProductForm && (
+                  <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                    <h3 className="text-lg font-bold text-gray-800 mb-4">Add New Product</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Product Name */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                        <input
+                          type="text"
+                          value={newProduct.name}
+                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          placeholder="e.g., Fresh Milk"
+                          autoComplete="off"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Brand */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Brand *</label>
+                        <input
+                          type="text"
+                          value={newProduct.brand}
+                          onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
+                          placeholder="e.g., Amul"
+                          autoComplete="off"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Current Price */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Current Price (₹) *</label>
+                        <input
+                          type="number"
+                          value={newProduct.price}
+                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                          placeholder="0"
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Original Price */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Original Price (₹) *</label>
+                        <input
+                          type="number"
+                          value={newProduct.oldPrice}
+                          onChange={(e) => setNewProduct({ ...newProduct, oldPrice: e.target.value })}
+                          placeholder="0"
+                          min="0"
+                          step="0.01"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Stock */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity</label>
+                        <input
+                          type="number"
+                          value={newProduct.stock}
+                          onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                          placeholder="0"
+                          min="0"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Category */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                        <select
+                          value={newProduct.category}
+                          onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
+                        >
+                          <option>Dairy</option>
+                          <option>Bakery</option>
+                          <option>Snacks</option>
+                          <option>Beverages</option>
+                          <option>Instant Food</option>
+                          <option>Personal Care</option>
+                          <option>Fruits</option>
+                          <option>Vegetables</option>
+                          <option>Other</option>
+                        </select>
+                      </div>
+
+                      {/* Image (Emoji) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Image / Emoji *</label>
+                        <input
+                          type="text"
+                          value={newProduct.image}
+                          onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                          placeholder="e.g., 🥛 or paste emoji"
+                          maxLength={2}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl text-center text-gray-800"
+                        />
+                      </div>
+
+                      {/* Delivery Time */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Time</label>
+                        <input
+                          type="text"
+                          value={newProduct.deliveryTime}
+                          onChange={(e) => setNewProduct({ ...newProduct, deliveryTime: e.target.value })}
+                          placeholder="e.g., 30 mins"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <textarea
+                          value={newProduct.description}
+                          onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+                          placeholder="Product description..."
+                          rows={3}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800 resize-none"
+                        />
+                      </div>
+
+                      {/* Popular Checkbox */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={newProduct.popular}
+                          onChange={(e) => setNewProduct({ ...newProduct, popular: e.target.checked })}
+                          id="popular"
+                          className="h-4 w-4"
+                        />
+                        <label htmlFor="popular" className="text-sm text-gray-700">Mark as Popular</label>
+                      </div>
+                    </div>
+
+                    {/* Form Buttons */}
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={handleAddProduct}
+                        disabled={adminLoading}
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-green-400 font-medium flex items-center justify-center gap-2"
+                      >
+                        <Plus size={18} />
+                        {adminLoading ? 'Adding...' : 'Add Product'}
+                      </button>
+                      <button
+                        onClick={() => setShowAddProductForm(false)}
+                        className="flex-1 bg-gray-400 text-white py-2 rounded-lg hover:bg-gray-500 font-medium"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-3 px-2">Product</th>
+                        <th className="text-left py-3 px-2">Price</th>
+                        <th className="text-left py-3 px-2">Stock</th>
+                        <th className="text-left py-3 px-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(products.length > 0 ? products : defaultProductDatabase).map(product => (
+                        <tr key={product.id || product._id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{product.image}</span>
+                              <div>
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-sm text-gray-500">{product.brand}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">₹{product.price}</td>
+                          <td className="py-3 px-2">
+                            <span className={`px-3 py-1 rounded-full text-sm ${product.stock > 20 ? 'bg-green-100 text-green-700' : product.stock > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                              {product.stock}
+                            </span>
+                          </td>
+                          <td className="py-3 px-2">
+                            {/* Only allow editing real database products (with string IDs), not demo products (with numeric IDs) */}
+                            {typeof product.id === 'string' ? (
+                              <button
+                                onClick={() => {
+                                  setEditingProduct(product);
+                                  setEditPrice(product.price.toString());
+                                  setEditStock(product.stock.toString());
+                                }}
+                                className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
+                              >
+                                <Edit2 size={16} />
+                                Edit
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">Demo</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Edit Product Form */}
+            <div>
+              <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">
+                  {editingProduct ? 'Edit Product' : 'Select a Product'}
+                </h3>
+
+                {editingProduct ? (
+                  <div className="space-y-4">
+                    <div className="text-center mb-4">
+                      <div className="text-6xl mb-2">{editingProduct.image}</div>
+                      <h4 className="font-semibold text-gray-800">{editingProduct.name}</h4>
+                      <p className="text-sm text-gray-500">{editingProduct.brand}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Price (₹)</label>
+                      <input
+                        type="number"
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Stock</label>
+                      <input
+                        type="number"
+                        value={editStock}
+                        onChange={(e) => setEditStock(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateProduct}
+                        disabled={adminLoading}
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium"
+                      >
+                        {adminLoading ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setEditingProduct(null)}
+                        className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteProduct(editingProduct.id)}
+                      disabled={adminLoading}
+                      className="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 disabled:bg-red-400"
+                    >
+                      Delete Product
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-center py-8">Click Edit on any product to manage it</p>
+                )}
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* Orders Tab */}
+          {adminActiveTab === 'orders' && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Orders List */}
+              <div className="lg:col-span-3">
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <Package size={24} />
+                    Order Management
+                  </h2>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-3 px-2">Order ID</th>
+                          <th className="text-left py-3 px-2">Customer</th>
+                          <th className="text-left py-3 px-2">Amount</th>
+                          <th className="text-left py-3 px-2">Status</th>
+                          <th className="text-left py-3 px-2">Payment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminOrders.length > 0 ? (
+                          adminOrders.map(order => (
+                            <tr key={order._id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => {
+                              setSelectedOrder(order);
+                              setOrderStatus(order.status);
+                              setOrderNotes(order.notes || '');
+                              setIsEditingAdminOrder(true);
+                            }}>
+                              <td className="py-3 px-2 font-mono text-xs">{order.orderId?.slice(0, 8)}...</td>
+                              <td className="py-3 px-2">
+                                <div className="font-medium">{order.userName}</div>
+                                <div className="text-xs text-gray-500">{order.userMobile}</div>
+                              </td>
+                              <td className="py-3 px-2 font-semibold">₹{order.total?.toFixed(2)}</td>
+                              <td className="py-3 px-2">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                                  order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                                  order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                                  order.status === 'Paid' ? 'bg-purple-100 text-purple-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-2 text-xs">
+                                {order.paymentMethod === 'UPI' ? '🔵 UPI' : order.paymentMethod === 'COD' ? '💵 COD' : '💳 Card'}
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-gray-500">No orders found</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Details */}
+              <div>
+                <div className="bg-white rounded-lg shadow-md p-6 sticky top-24 max-h-screen overflow-y-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {selectedOrder ? 'Order Management' : 'Select an Order'}
+                    </h3>
+                    {selectedOrder && (
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(null);
+                          setIsEditingAdminOrder(false);
+                        }}
+                        className="text-gray-500 hover:text-gray-700 text-xl"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {selectedOrder ? (
+                    <div className="space-y-4">
+                      <div className="pb-4 border-b">
+                        <div className="text-xs text-gray-600">Order ID</div>
+                        <div className="font-mono text-sm">{selectedOrder.orderId}</div>
+                      </div>
+
+                      <div className="pb-4 border-b">
+                        <div className="text-xs text-gray-600">Customer</div>
+                        <div className="font-medium">{selectedOrder.userName}</div>
+                        <div className="text-sm text-gray-600">{selectedOrder.userMobile}</div>
+                      </div>
+
+                      <div className="pb-4 border-b">
+                        <div className="text-xs text-gray-600">Amount</div>
+                        <div className="text-xl font-bold text-blue-600">₹{selectedOrder.total?.toFixed(2)}</div>
+                      </div>
+
+                      {/* Delivery Address Section */}
+                      {selectedOrder.address && (
+                        <div className="pb-4 border-b bg-orange-50 p-3 rounded-lg">
+                          <div className="text-xs text-orange-600 font-bold mb-2">📍 Delivery Address</div>
+                          <div className="space-y-1 text-sm">
+                            {selectedOrder.address.name && (
+                              <div className="font-medium text-gray-800">{selectedOrder.address.name}</div>
+                            )}
+                            <div className="text-gray-700">{selectedOrder.address.address}</div>
+                            <div className="text-gray-600">
+                              {selectedOrder.address.city}
+                              {selectedOrder.address.pincode && `, ${selectedOrder.address.pincode}`}
+                            </div>
+                            {selectedOrder.address.phone && (
+                              <div className="text-gray-600">📱 {selectedOrder.address.phone}</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Delivery Slot Section */}
+                      {selectedOrder.deliverySlot && (
+                        <div className="pb-4 border-b bg-purple-50 p-3 rounded-lg">
+                          <div className="text-xs text-purple-600 font-bold mb-2">⏰ Delivery Slot</div>
+                          <div className="text-sm font-medium text-gray-800">{selectedOrder.deliverySlot.label}</div>
+                        </div>
+                      )}
+
+                      {/* Payment Method Section */}
+                      <div className="pb-4 border-b">
+                        <div className="text-xs text-gray-600">Payment Method</div>
+                        <div className="font-medium">{selectedOrder.paymentMethod || 'COD'}</div>
+                      </div>
+
+                      {/* Order Status Section */}
+                      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h4 className="text-sm font-bold text-blue-900 mb-3">📋 Order Status</h4>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                          <select
+                            value={orderStatus}
+                            onChange={(e) => setOrderStatus(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
+                          >
+                            <option value="">-- Select Status --</option>
+                            <option>Pending</option>
+                            <option>Confirmed</option>
+                            <option>Processing</option>
+                            <option>Packed</option>
+                            <option>Shipped</option>
+                            <option>Out for Delivery</option>
+                            <option>Delivered</option>
+                            <option>Cancelled</option>
+                          </select>
+                        </div>
+
+                        <div className="mt-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                          <textarea
+                            value={orderNotes}
+                            onChange={(e) => setOrderNotes(e.target.value)}
+                            placeholder="Add order notes..."
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-sm"
+                            rows={2}
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleUpdateOrderStatus}
+                          disabled={adminLoading}
+                          className="w-full mt-3 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium text-sm transition"
+                        >
+                          {adminLoading ? 'Updating...' : '✓ Update Status'}
+                        </button>
+                      </div>
+
+                      {/* Tracking & Location Section */}
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h4 className="text-sm font-bold text-green-900 mb-3">📍 Live Tracking</h4>
+                        
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Partner</label>
+                          <input
+                            type="text"
+                            value={deliveryPartner}
+                            onChange={(e) => setDeliveryPartner(e.target.value)}
+                            placeholder="e.g., Rajesh Kumar"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                          />
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Partner Phone</label>
+                          <input
+                            type="tel"
+                            value={deliveryPartnerPhone}
+                            onChange={(e) => setDeliveryPartnerPhone(e.target.value)}
+                            placeholder="e.g., 9876543210"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                            <input
+                              type="text"
+                              value={currentLat}
+                              onChange={(e) => setCurrentLat(e.target.value)}
+                              placeholder="e.g., 17.3850"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                            <input
+                              type="text"
+                              value={currentLng}
+                              onChange={(e) => setCurrentLng(e.target.value)}
+                              placeholder="e.g., 78.4867"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Tracking Message</label>
+                          <textarea
+                            value={trackingMessage}
+                            onChange={(e) => setTrackingMessage(e.target.value)}
+                            placeholder="e.g., Package picked up from warehouse / Out for delivery"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 text-sm"
+                            rows={2}
+                          />
+                        </div>
+
+                        <button
+                          onClick={handleUpdateTracking}
+                          disabled={adminLoading}
+                          className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-green-400 font-medium text-sm transition"
+                        >
+                          {adminLoading ? 'Updating...' : '🚚 Update Tracking'}
+                        </button>
+                      </div>
+
+                      {/* Current Tracking Status */}
+                      {selectedOrder.trackingUpdates && selectedOrder.trackingUpdates.length > 0 && (
+                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                          <h4 className="text-sm font-bold text-purple-900 mb-3">📊 All Tracking Updates ({selectedOrder.trackingUpdates.length})</h4>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {selectedOrder.trackingUpdates.map((update: any, idx: number) => (
+                              <div key={idx} className="text-xs bg-white p-3 rounded border border-purple-100 hover:shadow-sm transition">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="font-bold text-purple-700">{update.status}</div>
+                                    <div className="text-gray-600 mt-1">{update.message}</div>
+                                    {update.location && (update.location.latitude || update.location.longitude) && (
+                                      <div className="text-gray-500 mt-1">
+                                        📍 {update.location.latitude}, {update.location.longitude}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-gray-400 text-xs whitespace-nowrap ml-2">
+                                    {new Date(update.timestamp).toLocaleString()}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Current Delivery Status */}
+                      <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h4 className="text-sm font-bold text-green-900 mb-3">🚚 Current Status</h4>
+                        
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-xs text-green-600 font-medium">Current Status</div>
+                            <div className="text-lg font-bold text-green-700">{selectedOrder.status}</div>
+                          </div>
+
+                          {selectedOrder.deliveryPartner && (
+                            <div className="border-t border-green-200 pt-3">
+                              <div className="text-xs text-green-600 font-medium">Delivery Partner</div>
+                              <div className="text-sm font-medium">{selectedOrder.deliveryPartner.name}</div>
+                              <div className="text-xs text-gray-600">📞 {selectedOrder.deliveryPartner.phone}</div>
+                            </div>
+                          )}
+
+                          {selectedOrder.currentLocation && (
+                            <div className="border-t border-green-200 pt-3">
+                              <div className="text-xs text-green-600 font-medium">Current Location</div>
+                              <div className="text-xs text-gray-600">
+                                📍 {selectedOrder.currentLocation.latitude}, {selectedOrder.currentLocation.longitude}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                Updated: {new Date(selectedOrder.currentLocation.updatedAt).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedOrder.estimatedDeliveryDate && (
+                            <div className="border-t border-green-200 pt-3">
+                              <div className="text-xs text-green-600 font-medium">Estimated Delivery</div>
+                              <div className="text-sm">{new Date(selectedOrder.estimatedDeliveryDate).toLocaleDateString()}</div>
+                            </div>
+                          )}
+
+                          {selectedOrder.actualDeliveryDate && (
+                            <div className="border-t border-green-200 pt-3">
+                              <div className="text-xs text-green-600 font-medium">Delivered On</div>
+                              <div className="text-sm font-medium text-green-700">
+                                ✅ {new Date(selectedOrder.actualDeliveryDate).toLocaleString()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">Click on any order to manage it</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -1769,6 +3569,31 @@ const PenumudiesApp = () => {
       {currentPage === 'profile' && <ProfilePage />}
       {currentPage === 'checkout' && <CheckoutPage />}
       {currentPage === 'orders' && <OrdersPage />}
+      {currentPage === 'admin' && <AdminPanel />}
+
+      {/* Admin Logout Confirmation */}
+      {showAdminLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border-2 border-gray-200">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Confirm Admin Logout</h2>
+            <p className="text-gray-600 mb-6">Are you sure you want to logout from admin panel?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowAdminLogoutConfirm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                No, Stay
+              </button>
+              <button
+                onClick={handleAdminLogout}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

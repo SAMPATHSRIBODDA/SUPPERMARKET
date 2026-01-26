@@ -34,11 +34,13 @@ const PenumudiesApp = () => {
   const [currentPage, setCurrentPage] = useState<string>('login');
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentAdmin, setCurrentAdmin] = useState<any | null>(null);
   const [pendingUser, setPendingUser] = useState<User | null>(null);
   const [generatedOTP, setGeneratedOTP] = useState<string>('');
   const [otpExpiry, setOtpExpiry] = useState<number | null>(null);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
+  const [isAdminLogin, setIsAdminLogin] = useState<boolean>(false);
   
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -66,9 +68,79 @@ const PenumudiesApp = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
   const [searchPage, setSearchPage] = useState<boolean>(false);
   const [searchPageQuery, setSearchPageQuery] = useState<string>('');
+  const [adminOrders, setAdminOrders] = useState<any[]>([]);
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>('');
+  const [adminPollIntervalRef, setAdminPollIntervalRef] = useState<NodeJS.Timeout | null>(null);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch orders from database
+  const fetchOrders = useCallback(async () => {
+    if (!currentUser || !currentUser.mobile) return;
+
+    try {
+      const response = await fetch(`/api/orders/manage?userMobile=${currentUser.mobile}`);
+      if (response.ok) {
+        const data = await response.json();
+        setOrders(data.orders || []);
+      }
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
+  }, [currentUser]);
+
+  // Fetch admin orders
+  const fetchAdminOrders = useCallback(async () => {
+    try {
+      let url = '/api/admin/orders';
+      if (selectedOrderStatus) {
+        url += `?status=${selectedOrderStatus}`;
+      }
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setAdminOrders(data.orders || []);
+      }
+    } catch (error) {
+      console.error('Error fetching admin orders:', error);
+    }
+  }, [selectedOrderStatus]);
+
+  // Poll orders when on orders or profile page
+  useEffect(() => {
+    if (currentPage === 'orders' || currentPage === 'profile') {
+      fetchOrders();
+      
+      // Set up polling every 3 seconds
+      pollIntervalRef.current = setInterval(() => {
+        fetchOrders();
+      }, 3000);
+
+      return () => {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+      };
+    }
+  }, [currentPage, fetchOrders]);
+
+  // Poll admin orders when on admin-orders page
+  useEffect(() => {
+    if (currentPage === 'admin-orders') {
+      fetchAdminOrders();
+      
+      // Set up polling every 3 seconds
+      const intervalId = setInterval(() => {
+        fetchAdminOrders();
+      }, 3000);
+
+      return () => {
+        clearInterval(intervalId);
+      };
+    }
+  }, [currentPage, fetchAdminOrders]);
 
   // Product Database
   const productDatabase = [
@@ -295,8 +367,10 @@ const PenumudiesApp = () => {
   const LoginPage = () => {
     const [mobile, setMobile] = useState('');
     const [password, setPassword] = useState('');
+    const [adminUsername, setAdminUsername] = useState('');
+    const [adminPassword, setAdminPassword] = useState('');
 
-    const handleLogin = () => {
+    const handleUserLogin = () => {
       setError('');
       if (!mobile || !password) {
         setError('Please fill in all fields');
@@ -319,49 +393,142 @@ const PenumudiesApp = () => {
       setTimeout(() => setCurrentPage('home'), 1500);
     };
 
+    const handleAdminLogin = () => {
+      setError('');
+      if (!adminUsername || !adminPassword) {
+        setError('Please fill in all fields');
+        return;
+      }
+
+      // Admin credentials validation
+      if (adminUsername === 'sampath_111' && adminPassword === 'Siddu@22') {
+        setCurrentAdmin({ username: adminUsername });
+        setSuccess('Admin login successful!');
+        setTimeout(() => setCurrentPage('admin-dashboard'), 1500);
+      } else {
+        setError('Invalid username or password');
+      }
+    };
+
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Welcome to Penumudies</h2>
-          
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
-          {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
+        <div className="w-full max-w-2xl">
+          {!isAdminLogin ? (
+            <div className="bg-white rounded-lg shadow-lg p-8">
+              <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Welcome to Penumudies</h2>
+              
+              {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
 
-          <div className="space-y-4">
-            <div className="relative">
-              <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="tel"
-                placeholder="Mobile Number"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="space-y-4">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="tel"
+                    placeholder="Mobile Number"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleUserLogin()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleUserLogin()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <button onClick={handleUserLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
+                  Log In
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <div className="text-center">
+                  <button onClick={() => setCurrentPage('signup')} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                    Create an account
+                  </button>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-gray-500">OR</span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsAdminLogin(true);
+                    setError('');
+                    setSuccess('');
+                  }} 
+                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition"
+                >
+                  Admin Login
+                </button>
+              </div>
             </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-lg p-8">
+              <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Admin Login</h2>
+              
+              {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
 
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="space-y-4">
+                <div className="relative">
+                  <User className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <button onClick={handleAdminLogin} className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
+                  Admin Login
+                </button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <button 
+                  onClick={() => {
+                    setIsAdminLogin(false);
+                    setError('');
+                    setSuccess('');
+                    setAdminUsername('');
+                    setAdminPassword('');
+                  }} 
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Back to User Login
+                </button>
+              </div>
             </div>
-
-            <button onClick={handleLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
-              Log In
-            </button>
-          </div>
-
-          <div className="mt-6 text-center">
-            <button onClick={() => setCurrentPage('signup')} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-              Create an account
-            </button>
-          </div>
+          )}
         </div>
       </div>
     );
@@ -703,6 +870,19 @@ const PenumudiesApp = () => {
                       >
                         <Heart size={18} className="text-gray-600" />
                         <span className="font-medium">My Wishlist</span>
+                      </button>
+                    </div>
+
+                    <div className="border-t p-2">
+                      <button
+                        onClick={() => {
+                          setShowAccountMenu(false);
+                          setCurrentPage('admin-orders');
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-blue-50 rounded-lg flex items-center gap-3 text-blue-600"
+                      >
+                        <TrendingUp size={18} />
+                        <span className="font-medium">Admin - Orders</span>
                       </button>
                     </div>
 
@@ -1252,6 +1432,62 @@ const PenumudiesApp = () => {
               )}
             </div>
           </div>
+
+          <div className="mt-8 bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <Package size={24} />
+              Recent Orders
+            </h2>
+
+            {orders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No orders yet</p>
+                <button
+                  onClick={() => setCurrentPage('home')}
+                  className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Start Shopping
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {orders.slice(0, 5).map(order => (
+                  <div key={order._id} className="border rounded-lg p-4 hover:bg-gray-50 transition">
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <div className="font-bold">Order #{order.orderId}</div>
+                        <div className="text-xs text-gray-500">{new Date(order.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                        order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                        order.status === 'Shipped' || order.status === 'Out for Delivery' ? 'bg-blue-100 text-blue-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {order.status}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        {order.items.length} item{order.items.length > 1 ? 's' : ''}
+                      </div>
+                      <div className="text-lg font-bold text-blue-600">₹{order.total.toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {orders.length > 5 && (
+              <button
+                onClick={() => setCurrentPage('orders')}
+                className="w-full mt-4 text-blue-600 hover:text-blue-700 font-medium py-2"
+              >
+                View All Orders →
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1278,7 +1514,7 @@ const PenumudiesApp = () => {
       setTimeout(() => setSuccess(''), 2000);
     };
 
-    const handlePlaceOrder = () => {
+    const handlePlaceOrder = async () => {
       if (!selectedAddress) {
         setError('Select delivery address');
         setTimeout(() => setError(''), 3000);
@@ -1293,21 +1529,59 @@ const PenumudiesApp = () => {
 
       setProcessingOrder(true);
 
-      setTimeout(() => {
+      try {
         const orderId = `ORD${Date.now()}`;
-        const order = {
-          id: orderId,
+        const addressData = addresses.find(a => a.id === selectedAddress);
+        const slotData = deliverySlots.find(s => s.id === selectedSlot);
+        const cartTotal = calculateCartTotal().total;
+
+        // Prepare order data for API
+        const orderPayload = {
+          orderId,
           userId: currentUser?.id,
-          items: activeCart,
-          address: addresses.find(a => a.id === selectedAddress),
-          slot: deliverySlots.find(s => s.id === selectedSlot),
+          userMobile: currentUser?.mobile,
+          userName: currentUser?.name,
+          items: activeCart.map(item => ({
+            productId: item.productId,
+            name: item.name,
+            brand: item.brand,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          })),
+          address: {
+            name: addressData?.name,
+            phone: addressData?.phone,
+            address: addressData?.address,
+            city: addressData?.city,
+            pincode: addressData?.pincode,
+          },
+          deliverySlot: {
+            id: slotData?.id,
+            label: slotData?.label,
+          },
           paymentMethod,
-          total: calculateCartTotal().total,
-          status: 'Confirmed',
-          createdAt: new Date().toISOString()
+          total: cartTotal,
+          status: 'Pending',
         };
 
-        setOrders([...orders, order]);
+        // Send order to database
+        const response = await fetch('/api/orders/manage', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(orderPayload),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to place order');
+        }
+
+        const result = await response.json();
+
+        // Update local state and clear cart
+        setOrders([...orders, result.order]);
         if (currentUser) {
           setCart([]);
         } else {
@@ -1315,12 +1589,19 @@ const PenumudiesApp = () => {
         }
 
         setProcessingOrder(false);
-        setSuccess('Order placed!');
+        setSuccess('Order placed successfully!');
         setTimeout(() => {
           setSuccess('');
           setCurrentPage('orders');
-        }, 2000);
-      }, 2000);
+          // Fetch updated orders
+          fetchOrders();
+        }, 1500);
+      } catch (error) {
+        console.error('Error placing order:', error);
+        setError('Failed to place order. Please try again.');
+        setProcessingOrder(false);
+        setTimeout(() => setError(''), 3000);
+      }
     };
 
     return (
@@ -1521,6 +1802,318 @@ const PenumudiesApp = () => {
     );
   };
 
+  // Admin Orders Page
+  const AdminOrdersPage = () => {
+    const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+      try {
+        const response = await fetch('/api/admin/orders', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            orderId,
+            status: newStatus,
+          }),
+        });
+
+        if (response.ok) {
+          setSuccess('Order status updated successfully!');
+          setTimeout(() => setSuccess(''), 2000);
+          fetchAdminOrders();
+        } else {
+          setError('Failed to update order status');
+          setTimeout(() => setError(''), 3000);
+        }
+      } catch (error) {
+        console.error('Error updating order:', error);
+        setError('Error updating order status');
+        setTimeout(() => setError(''), 3000);
+      }
+    };
+
+    const statusOptions = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold text-gray-800">Admin - Order Management</h1>
+            <button
+              onClick={() => setCurrentPage('home')}
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+            >
+              ← Back
+            </button>
+          </div>
+
+          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">{error}</div>}
+          {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg">{success}</div>}
+
+          <div className="mb-6 flex gap-3">
+            <button
+              onClick={() => setSelectedOrderStatus('')}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                selectedOrderStatus === '' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              All Orders ({adminOrders.length})
+            </button>
+            {statusOptions.map(status => (
+              <button
+                key={status}
+                onClick={() => setSelectedOrderStatus(status)}
+                className={`px-4 py-2 rounded-lg font-medium transition ${
+                  selectedOrderStatus === status ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+
+          {adminOrders.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+              <Package size={64} className="mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500">No orders found</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {adminOrders.map(order => (
+                <div key={order._id} className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition">
+                  <div className="grid md:grid-cols-5 gap-4 mb-4">
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Order ID</div>
+                      <div className="font-bold text-lg">{order.orderId}</div>
+                      <div className="text-xs text-gray-500 mt-1">{new Date(order.createdAt).toLocaleString()}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Customer</div>
+                      <div className="font-semibold">{order.userName}</div>
+                      <div className="text-xs text-gray-600">{order.userMobile}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Total</div>
+                      <div className="font-bold text-lg text-blue-600">₹{order.total.toFixed(2)}</div>
+                      <div className="text-xs text-gray-600">{order.items.length} items</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Status</div>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusUpdate(order.orderId, e.target.value)}
+                        className={`px-3 py-2 rounded-lg border font-semibold text-sm w-full focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          order.status === 'Delivered' ? 'bg-green-100 border-green-300' :
+                          order.status === 'Cancelled' ? 'bg-red-100 border-red-300' :
+                          order.status === 'Shipped' ? 'bg-blue-100 border-blue-300' :
+                          'bg-yellow-100 border-yellow-300'
+                        }`}
+                      >
+                        {statusOptions.map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-500 mb-1">Address</div>
+                      <div className="text-sm font-medium truncate">{order.address?.city}</div>
+                      <div className="text-xs text-gray-600 truncate">{order.address?.address?.substring(0, 30)}</div>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-3">
+                    <div className="text-xs text-gray-600 mb-2">Items:</div>
+                    <div className="flex flex-wrap gap-3">
+                      {order.items.map((item: any, idx: number) => (
+                        <div key={idx} className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg">
+                          <span className="text-lg">{item.image}</span>
+                          <div className="text-xs">
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-gray-500">x{item.quantity}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Admin Dashboard Page
+  const AdminDashboard = () => {
+    // Fetch admin orders when dashboard loads
+    React.useEffect(() => {
+      fetchAdminOrders();
+      
+      // Set up polling every 3 seconds
+      const intervalId = setInterval(() => {
+        fetchAdminOrders();
+      }, 3000);
+
+      return () => {
+        clearInterval(intervalId);
+      };
+    }, [fetchAdminOrders]);
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-gradient-to-r from-green-600 to-green-700 text-white">
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold">Admin Dashboard</h1>
+                <p className="text-green-100 mt-2">Welcome, {currentAdmin?.username}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setCurrentAdmin(null);
+                  setIsAdminLogin(false);
+                  setCurrentPage('login');
+                  setSuccess('Logged out successfully');
+                  setTimeout(() => setSuccess(''), 2000);
+                }}
+                className="bg-white text-green-600 px-6 py-2 rounded-lg font-semibold hover:bg-green-50 transition"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg">{success}</div>}
+          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">{error}</div>}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-blue-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-500 text-sm">Total Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{adminOrders.length}</p>
+                </div>
+                <Package size={40} className="text-blue-500 opacity-20" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-yellow-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-500 text-sm">Pending Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{adminOrders.filter(o => o.status === 'Pending').length}</p>
+                </div>
+                <Clock size={40} className="text-yellow-500 opacity-20" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6 border-l-4 border-green-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-500 text-sm">Delivered Orders</p>
+                  <p className="text-3xl font-bold text-gray-800">{adminOrders.filter(o => o.status === 'Delivered').length}</p>
+                </div>
+                <Check size={40} className="text-green-500 opacity-20" />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Quick Actions</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={() => setCurrentPage('admin-orders')}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 px-6 rounded-lg font-semibold hover:from-blue-600 hover:to-blue-700 transition flex items-center gap-3"
+              >
+                <Package size={24} />
+                <span>Manage Orders</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrentAdmin(null);
+                  setIsAdminLogin(false);
+                  setCurrentPage('login');
+                }}
+                className="bg-gradient-to-r from-red-500 to-red-600 text-white py-4 px-6 rounded-lg font-semibold hover:from-red-600 hover:to-red-700 transition flex items-center gap-3"
+              >
+                <ArrowRight size={24} />
+                <span>Logout</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Orders</h2>
+
+            {adminOrders.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Package size={48} className="mx-auto text-gray-300 mb-3" />
+                <p>No orders found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Order ID</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Customer</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Total</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adminOrders.slice(0, 10).map(order => (
+                      <tr key={order._id} className="border-b hover:bg-gray-50 transition">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-800">{order.orderId}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          <div>{order.userName}</div>
+                          <div className="text-xs text-gray-500">{order.userMobile}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-bold text-blue-600">₹{order.total.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
+                            order.status === 'Cancelled' ? 'bg-red-100 text-red-700' :
+                            order.status === 'Shipped' ? 'bg-blue-100 text-blue-700' :
+                            'bg-yellow-100 text-yellow-700'
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{new Date(order.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {adminOrders.length > 10 && (
+              <button
+                onClick={() => setCurrentPage('admin-orders')}
+                className="w-full mt-4 text-blue-600 hover:text-blue-700 font-medium py-2"
+              >
+                View All Orders →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (searchInputRef.current && !searchInputRef.current.contains(e.target as Node)) {
@@ -1544,6 +2137,8 @@ const PenumudiesApp = () => {
       {currentPage === 'profile' && <ProfilePage />}
       {currentPage === 'checkout' && <CheckoutPage />}
       {currentPage === 'orders' && <OrdersPage />}
+      {currentPage === 'admin-orders' && <AdminOrdersPage />}
+      {currentPage === 'admin-dashboard' && <AdminDashboard />}
     </>
   );
 };
