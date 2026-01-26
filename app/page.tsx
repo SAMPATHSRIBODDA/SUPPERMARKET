@@ -983,18 +983,6 @@ const PenumudiesApp = () => {
                       <button
                         onClick={() => {
                           setShowAccountMenu(false);
-                          setShowAddAddress(true);
-                          setCurrentPage('addresses');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <MapPin size={18} className="text-gray-600" />
-                        <span className="font-medium">Manage Addresses</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
                           setShowWishlist(true);
                         }}
                         className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
