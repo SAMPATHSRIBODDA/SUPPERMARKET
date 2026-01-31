@@ -52,23 +52,18 @@ interface TimeSlot {
 
 const PenumudiesApp = () => {
   // State Management
-  const [currentPage, setCurrentPage] = useState<string>('login');
+  const [currentPage, setCurrentPage] = useState<string>('home');
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [pendingUser, setPendingUser] = useState<User | null>(null);
-  const [generatedOTP, setGeneratedOTP] = useState<string>('');
-  const [otpExpiry, setOtpExpiry] = useState<number | null>(null);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [showLoginSuccess, setShowLoginSuccess] = useState<boolean>(false);
   const [isEditingName, setIsEditingName] = useState<boolean>(false);
   const [editName, setEditName] = useState<string>('');
   const [editNameLoading, setEditNameLoading] = useState<boolean>(false);
+  const [isEditingMobile, setIsEditingMobile] = useState<boolean>(false);
+  const [editMobile, setEditMobile] = useState<string>('');
+  const [editMobileLoading, setEditMobileLoading] = useState<boolean>(false);
   
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [showSearchDropdown, setShowSearchDropdown] = useState<boolean>(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [sortBy, setSortBy] = useState<string>('popular');
   
@@ -90,12 +85,18 @@ const PenumudiesApp = () => {
   const [showAccountMenu, setShowAccountMenu] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
   const [showAdminLogoutConfirm, setShowAdminLogoutConfirm] = useState<boolean>(false);
-  const [searchPage, setSearchPage] = useState<boolean>(false);
-  const [searchPageQuery, setSearchPageQuery] = useState<string>('');
   const [showRazorpayModal, setShowRazorpayModal] = useState<boolean>(false);
   const [razorpayOrderId, setRazorpayOrderId] = useState<string>('');
   const [razorpayAmount, setRazorpayAmount] = useState<number>(0);
   const [showTracking, setShowTracking] = useState<boolean>(false);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+  const [showSignupModal, setShowSignupModal] = useState<boolean>(false);
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
+  const [loginMobile, setLoginMobile] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [signupMobile, setSignupMobile] = useState<string>('');
+  const [signupPassword, setSignupPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
   
   // Admin Panel State
   const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(false);
@@ -108,22 +109,21 @@ const PenumudiesApp = () => {
   const [editPrice, setEditPrice] = useState<string>('');
   const [editStock, setEditStock] = useState<string>('');
   const [adminLoading, setAdminLoading] = useState<boolean>(false);
-  const [searchDropdownOpen, setSearchDropdownOpen] = useState<boolean>(false);
   
   // Admin - Add Product Form
   const [showAddProductForm, setShowAddProductForm] = useState<boolean>(false);
-  const [newProduct, setNewProduct] = useState({
-    name: '',
-    brand: '',
-    price: '',
-    oldPrice: '',
-    stock: '',
-    category: 'Dairy',
-    image: '',
-    popular: false,
-    deliveryTime: '30 mins',
-    description: '',
-  });
+  
+  // Use refs for form inputs to prevent re-render issues
+  const productNameRef = useRef<HTMLInputElement>(null);
+  const productBrandRef = useRef<HTMLInputElement>(null);
+  const productPriceRef = useRef<HTMLInputElement>(null);
+  const productOldPriceRef = useRef<HTMLInputElement>(null);
+  const productStockRef = useRef<HTMLInputElement>(null);
+  const productCategoryRef = useRef<HTMLSelectElement>(null);
+  const productImageRef = useRef<HTMLInputElement>(null);
+  const productDeliveryTimeRef = useRef<HTMLInputElement>(null);
+  const productDescriptionRef = useRef<HTMLTextAreaElement>(null);
+  const productPopularRef = useRef<HTMLInputElement>(null);
   
   // Admin - Order Management
   const [adminOrders, setAdminOrders] = useState<any[]>([]);
@@ -137,41 +137,115 @@ const PenumudiesApp = () => {
   const [trackingMessage, setTrackingMessage] = useState<string>('');
   const [adminActiveTab, setAdminActiveTab] = useState<string>('products');
   const [isEditingAdminOrder, setIsEditingAdminOrder] = useState<boolean>(false);
+  const [categories, setCategories] = useState<string[]>(['All', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Instant Food', 'Personal Care', 'Fruits']);
+  const [showOtherCategoryInput, setShowOtherCategoryInput] = useState<boolean>(false);
+  const [newCategoryInput, setNewCategoryInput] = useState<string>('');
   
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchDropdownRef = useRef<HTMLDivElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
 
-  // Auto-dismiss login success message after 2 seconds
+  // Restore user session and categories from localStorage on app load
   useEffect(() => {
-    let timer: NodeJS.Timeout | undefined;
-    if (showLoginSuccess) {
-      timer = setTimeout(() => {
-        setShowLoginSuccess(false);
-      }, 2000);
+    const savedUser = localStorage.getItem('penumudies_user');
+    const savedAdmin = localStorage.getItem('penumudies_admin');
+    const savedCategories = localStorage.getItem('penumudies_categories');
+    
+    // Load categories from localStorage
+    if (savedCategories) {
+      try {
+        const loadedCategories = JSON.parse(savedCategories);
+        setCategories(loadedCategories);
+        console.log('Categories restored from localStorage:', loadedCategories);
+      } catch (err) {
+        console.error('Failed to restore categories:', err);
+      }
     }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [showLoginSuccess]);
+    
+    // PRIORITY: Admin session takes precedence
+    if (savedAdmin) {
+      try {
+        const admin = JSON.parse(savedAdmin);
+        setAdminLoggedIn(true);
+        setAdminToken(admin.token);
+        setAdminUsername(admin.username);
+        setCurrentPage('admin');
+        console.log('Admin session restored');
+      } catch (err) {
+        console.error('Failed to restore admin session:', err);
+        localStorage.removeItem('penumudies_admin');
+        // Fallback to user if admin fails
+        if (savedUser) {
+          try {
+            const user = JSON.parse(savedUser);
+            setCurrentUser(user);
+            setCurrentPage('home');
+          } catch (userErr) {
+            console.error('Failed to restore user session:', userErr);
+            localStorage.removeItem('penumudies_user');
+          }
+        }
+      }
+    } else if (savedUser) {
+      // Only restore user if NO admin session exists
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+        setCurrentPage('home');
+        console.log('User session restored');
+      } catch (err) {
+        console.error('Failed to restore user session:', err);
+        localStorage.removeItem('penumudies_user');
+      }
+    }
+  }, []);
 
-  // Product Database
-  const defaultProductDatabase: Product[] = [
-    { id: 1, name: 'Amul Fresh Milk', brand: 'Amul', price: 62, oldPrice: 65, stock: 150, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
-    { id: 2, name: 'Mother Dairy Milk 1L', brand: 'Mother Dairy', price: 60, oldPrice: 65, stock: 200, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
-    { id: 3, name: 'Britannia Bread', brand: 'Britannia', price: 45, oldPrice: 50, stock: 80, category: 'Bakery', image: '🍞', popular: true, deliveryTime: '10 mins' },
-    { id: 4, name: 'Amul Butter 500g', brand: 'Amul', price: 285, oldPrice: 300, stock: 45, category: 'Dairy', image: '🧈', popular: true, deliveryTime: '8 mins' },
-    { id: 5, name: 'Cadbury Dairy Milk', brand: 'Cadbury', price: 50, oldPrice: 60, stock: 120, category: 'Snacks', image: '🍫', popular: true, deliveryTime: '12 mins' },
-    { id: 6, name: 'Lays Chips Classic', brand: 'Lays', price: 20, oldPrice: 25, stock: 200, category: 'Snacks', image: '🍟', popular: true, deliveryTime: '12 mins' },
-    { id: 7, name: 'Coca Cola 2L', brand: 'Coca Cola', price: 90, oldPrice: 100, stock: 100, category: 'Beverages', image: '🥤', popular: true, deliveryTime: '15 mins' },
-    { id: 8, name: 'Maggi Noodles 12 Pack', brand: 'Maggi', price: 144, oldPrice: 160, stock: 90, category: 'Instant Food', image: '🍜', popular: true, deliveryTime: '10 mins' },
-    { id: 9, name: 'Dettol Handwash', brand: 'Dettol', price: 95, oldPrice: 110, stock: 70, category: 'Personal Care', image: '🧼', popular: true, deliveryTime: '15 mins' },
-    { id: 10, name: 'Organic Bananas 1kg', brand: 'Fresh', price: 55, oldPrice: 60, stock: 120, category: 'Fruits', image: '🍌', popular: true, deliveryTime: '8 mins' },
-  ];
-  
-  const productDatabase = products.length > 0 ? products : defaultProductDatabase;
+  // Save categories to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('penumudies_categories', JSON.stringify(categories));
+    console.log('Categories saved to localStorage:', categories);
+  }, [categories]);
 
-  const categories = ['All', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Instant Food', 'Personal Care', 'Fruits'];
+  // Use database products - fallback to empty array if no products loaded
+  const productDatabase = products.length > 0 ? products : [];
+
+  // Handle category selection change
+  const handleCategoryChange = (selectedCategory: string) => {
+    if (selectedCategory === 'Other') {
+      setShowOtherCategoryInput(true);
+    } else {
+      setShowOtherCategoryInput(false);
+      setNewCategoryInput('');
+    }
+  };
+
+  // Add new category from Add Product form
+  const handleAddNewCategory = () => {
+    const trimmedCategory = newCategoryInput.trim();
+    if (!trimmedCategory) {
+      setError('Please enter a category name');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    if (categories.includes(trimmedCategory)) {
+      setError('Category already exists');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+    
+    // Add category to state (this will also trigger localStorage save via useEffect)
+    setCategories([...categories, trimmedCategory]);
+    
+    // Reset the input form
+    setNewCategoryInput('');
+    setShowOtherCategoryInput(false);
+    
+    // Reset dropdown to default
+    if (productCategoryRef.current) {
+      productCategoryRef.current.value = 'Dairy';
+    }
+    
+    setSuccess(`✅ Category "${trimmedCategory}" added! Now select it from the dropdown.`);
+    setTimeout(() => setSuccess(''), 4000);
+  };
 
   const deliverySlots = [
     { id: 1, label: 'Today, 2:00 PM - 4:00 PM', available: true },
@@ -180,53 +254,58 @@ const PenumudiesApp = () => {
     { id: 4, label: 'Tomorrow, 8:00 AM - 10:00 AM', available: true },
   ];
 
-  // Search System
-  const performSearch = useCallback((query: string, searchProducts: Product[]) => {
-    if (!query.trim()) {
+  // ========== BULLETPROOF SEARCH IMPLEMENTATION ==========
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState<boolean>(false);
+  
+  // Pure search function - reads from ref directly
+  const performSearch = (query: string) => {
+    if (!query || query.trim() === '') {
       setSearchResults([]);
+      setShowSearchResults(false);
       return;
     }
 
-    const lowerQuery = query.toLowerCase().trim();
-    const typoMap: { [key: string]: string } = { 'mlk': 'milk', 'buter': 'butter', 'bred': 'bread' };
-    const correctedQuery = typoMap[lowerQuery] || lowerQuery;
-    
-    const searchDatabase = searchProducts.length > 0 ? searchProducts : defaultProductDatabase;
-    let results = searchDatabase.filter(product => {
-      const nameMatch = product.name.toLowerCase().includes(correctedQuery);
-      const brandMatch = product.brand.toLowerCase().includes(correctedQuery);
-      const categoryMatch = product.category.toLowerCase().includes(correctedQuery);
-      return nameMatch || brandMatch || categoryMatch;
-    });
-
-    results.sort((a, b) => {
-      if (a.stock > 0 && b.stock === 0) return -1;
-      if (a.stock === 0 && b.stock > 0) return 1;
-      if (a.popular && !b.popular) return -1;
-      if (!a.popular && b.popular) return 1;
-      return a.name.localeCompare(b.name);
-    });
+    const searchTerm = query.toLowerCase().trim();
+    const results = products.filter(product => 
+      product.name.toLowerCase().includes(searchTerm) ||
+      product.brand.toLowerCase().includes(searchTerm) ||
+      product.category.toLowerCase().includes(searchTerm)
+    );
 
     setSearchResults(results);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      performSearch(searchQuery, products);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, performSearch]);
-
-  const handleSearchSubmit = () => {
-    if (searchQuery.trim()) {
-      const updated = [searchQuery, ...recentSearches.filter(s => s !== searchQuery)].slice(0, 5);
-      setRecentSearches(updated);
-      setShowSearchDropdown(false);
-      setSearchPageQuery(searchQuery);
-      setSearchPage(true);
-      setCurrentPage('search');
+    setShowSearchResults(true);
+  };
+  
+  // Handle search input - debounced
+  const handleSearchInput = () => {
+    // Clear any existing timeout
+    if (searchDebounceRef.current !== null) {
+      clearTimeout(searchDebounceRef.current);
     }
+
+    // Get value from ref directly - NEVER from state
+    const currentValue = searchInputRef.current?.value || '';
+    
+    // Set new debounce timeout
+    searchDebounceRef.current = setTimeout(() => {
+      performSearch(currentValue);
+    }, 300);
+  };
+  
+  // Clear search
+  const clearSearch = () => {
+    if (searchDebounceRef.current !== null) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    if (searchInputRef.current) {
+      searchInputRef.current.value = '';
+      searchInputRef.current.focus();
+    }
+    setSearchResults([]);
+    setShowSearchResults(false);
   };
 
   const handleLogout = () => {
@@ -237,9 +316,155 @@ const PenumudiesApp = () => {
     setOrders([]);
     setShowLogoutConfirm(false);
     setShowAccountMenu(false);
-    setCurrentPage('login');
+    setCurrentPage('home');
+    localStorage.removeItem('penumudies_user');
     setSuccess('Logged out successfully');
     setTimeout(() => setSuccess(''), 2000);
+  };
+
+  // Modal Login Handler - Database API
+  const handleLoginSubmit = async () => {
+    setError('');
+    if (!loginMobile || !loginPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: loginMobile,
+          password: loginPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Login failed');
+        return;
+      }
+
+      // Set current user with token for API calls
+      const userData = {
+        ...data.user,
+        password: loginPassword // Store for session
+      };
+      setCurrentUser(userData);
+      localStorage.setItem('penumudies_user', JSON.stringify(userData));
+      
+      setLoginMobile('');
+      setLoginPassword('');
+      setShowLoginModal(false);
+      setSuccess('Login successful!');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setError('Login failed. Please try again.');
+      console.error('Login error:', err);
+    }
+  };
+
+  // Modal Signup Handler
+  const handleSignupSubmit = () => {
+    setError('');
+    if (!signupMobile || !signupPassword || !confirmPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (!/^\d{10}$/.test(signupMobile)) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    if (signupPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    if (signupPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (users.find(u => u.mobile === signupMobile)) {
+      setError('Mobile number already registered');
+      return;
+    }
+
+    // Create user directly without OTP
+    const newUser: User = {
+      mobile: signupMobile,
+      password: signupPassword,
+      name: `User${signupMobile.slice(-4)}`,
+      id: Date.now().toString()
+    };
+    setUsers([...users, newUser]);
+    setSuccess('Account created successfully!');
+    setShowSignupModal(false);
+    setSignupMobile('');
+    setSignupPassword('');
+    setConfirmPassword('');
+    
+    // Auto login the user
+    setTimeout(() => {
+      setCurrentUser(newUser);
+      setSuccess('Logged in successfully!');
+      setTimeout(() => setSuccess(''), 2000);
+    }, 1000);
+  };
+
+  // Modal Admin Login Handler - Database API
+  const handleAdminLoginSubmit = async () => {
+    setError('');
+    if (!adminUsername || !adminPassword) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    setAdminLoading(true);
+    try {
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: adminUsername,
+          password: adminPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Admin login failed');
+        setAdminLoading(false);
+        return;
+      }
+
+      // Set admin logged in state
+      setAdminLoggedIn(true);
+      setAdminToken(data.admin.token);
+      setCurrentUser(null); // Clear user if logged in
+      setShowAdminLoginModal(false);
+      setAdminUsername('');
+      setAdminPassword('');
+      setSuccess('Admin login successful!');
+      setAdminLoading(false);
+      setTimeout(() => {
+        setCurrentPage('admin');
+        setSuccess('');
+      }, 1500);
+    } catch (err) {
+      setError('Admin login failed. Please try again.');
+      setAdminLoading(false);
+      console.error('Admin login error:', err);
+    }
   };
 
   // Edit Profile Handler - Inline Name Edit
@@ -286,6 +511,7 @@ const PenumudiesApp = () => {
       if (currentUser) {
         const updatedUser = { ...currentUser, name: editName.trim() };
         setCurrentUser(updatedUser);
+        localStorage.setItem('penumudies_user', JSON.stringify(updatedUser));
         
         // Update in users list
         const updatedUsers = users.map(u => u.mobile === currentUser.mobile ? updatedUser : u);
@@ -311,6 +537,64 @@ const PenumudiesApp = () => {
     setIsEditingName(false);
   };
 
+  const handleSaveMobile = async () => {
+    if (!editMobile.trim()) {
+      setError('Mobile number cannot be empty');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (editMobile.trim().length < 10) {
+      setError('Mobile number must be at least 10 digits');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (currentUser && editMobile.trim() === currentUser.mobile) {
+      setIsEditingMobile(false);
+      return;
+    }
+
+    setEditMobileLoading(true);
+
+    try {
+      const response = await fetch('/api/users/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mobile: currentUser?.mobile,
+          newMobile: editMobile.trim()
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update mobile');
+      }
+
+      const updatedUser = { ...currentUser, mobile: editMobile.trim() };
+      setCurrentUser(updatedUser);
+      setSuccess('Mobile number updated successfully');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update mobile');
+      console.error('Error updating mobile:', err);
+    } finally {
+      setIsEditingMobile(false);
+      setEditMobileLoading(false);
+    }
+  };
+
+  const handleCancelEditMobile = () => {
+    if (currentUser) {
+      setEditMobile(currentUser.mobile);
+    }
+    setIsEditingMobile(false);
+  };
+
   // Load Products on Mount
   useEffect(() => {
     const loadProducts = async () => {
@@ -319,6 +603,7 @@ const PenumudiesApp = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.products && data.products.length > 0) {
+            console.log('✓ Products loaded from API:', data.products.length, 'products');
             setProducts(data.products);
           }
         }
@@ -329,25 +614,44 @@ const PenumudiesApp = () => {
     loadProducts();
   }, []);
 
-  // Load Orders on Mount
+  // Debug: Log products state changes
+  useEffect(() => {
+    console.log('📦 Products state updated:', products.length, 'products');
+  }, [products]);
+
+  // Load Orders when user/admin context changes
   useEffect(() => {
     const loadOrders = async () => {
       try {
-        const response = await fetch('/api/orders/manage');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.orders && data.orders.length > 0) {
-            // Set both user orders and admin orders
-            setOrders(data.orders);
-            setAdminOrders(data.orders);
+        // Load admin orders only when admin is logged in
+        if (adminLoggedIn) {
+          const adminResponse = await fetch('/api/orders/manage');
+          if (adminResponse.ok) {
+            const adminData = await adminResponse.json();
+            if (adminData.orders) {
+              setAdminOrders(adminData.orders);
+            }
           }
+        }
+
+        // Load user orders only for the current user
+        if (currentUser?.mobile) {
+          const userResponse = await fetch(`/api/orders/manage?userMobile=${currentUser.mobile}`);
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.orders) {
+              setOrders(userData.orders);
+            }
+          }
+        } else {
+          setOrders([]);
         }
       } catch (err) {
         console.error('Failed to load orders:', err);
       }
     };
     loadOrders();
-  }, []);
+  }, [adminLoggedIn, currentUser?.mobile]);
 
   // Real-time Orders Sync - Refresh every 5 seconds when admin panel is open
   useEffect(() => {
@@ -365,8 +669,12 @@ const PenumudiesApp = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.orders) {
-            setOrders(data.orders);
-            setAdminOrders(data.orders);
+            if (currentPage === 'orders' && currentUser?.mobile) {
+              setOrders(data.orders);
+            }
+            if (currentPage === 'admin' && adminLoggedIn) {
+              setAdminOrders(data.orders);
+            }
           }
         }
       } catch (err) {
@@ -376,6 +684,27 @@ const PenumudiesApp = () => {
 
     return () => clearInterval(interval);
   }, [currentPage, currentUser ? currentUser.mobile : null, showTracking, isEditingAdminOrder, adminLoggedIn, showAddProductForm]);
+
+  // Load Addresses on User Login
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!currentUser?.mobile) return;
+      
+      try {
+        const response = await fetch(`/api/addresses?userMobile=${currentUser.mobile}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.addresses && Array.isArray(data.addresses)) {
+            setAddresses(data.addresses);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load addresses:', err);
+      }
+    };
+    
+    loadAddresses();
+  }, [currentUser?.mobile]);
 
   // Cart Management
   useEffect(() => {
@@ -410,6 +739,12 @@ const PenumudiesApp = () => {
   }, [currentUser]);
 
   const addToCart = (product: Product) => {
+    if (!currentUser) {
+      setError('Please login to your account to add items to cart');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
     if (product.stock === 0) {
       setError('Product out of stock');
       setTimeout(() => setError(''), 3000);
@@ -516,106 +851,7 @@ const PenumudiesApp = () => {
   };
 
   // Authentication Pages
-  const LoginPage = () => {
-    const [mobile, setMobile] = useState('');
-    const [password, setPassword] = useState('');
-
-    const handleLogin = async () => {
-      setError('');
-      if (!mobile || !password) {
-        setError('Please fill in all fields');
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            mobile,
-            password
-          })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          setError(data.message || 'Login failed');
-          return;
-        }
-
-        // Set current user with token for API calls
-        setCurrentUser({
-          ...data.user,
-          password: password // Store for session
-        });
-        
-        setShowLoginSuccess(true);
-        setMobile('');
-        setPassword('');
-        
-        // Navigate to home after success message appears
-        setTimeout(() => setCurrentPage('home'), 1000);
-      } catch (err) {
-        setError('Login failed. Please try again.');
-        console.error('Login error:', err);
-      }
-    };
-
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">Welcome to Penumudies</h2>
-          
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
-          {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
-
-          <div className="space-y-4">
-            <div className="relative">
-              <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="tel"
-                placeholder="Mobile Number"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-              />
-            </div>
-
-            <div className="relative">
-              <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-black text-black"
-              />
-            </div>
-
-            <button onClick={handleLogin} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
-              Log In
-            </button>
-          </div>
-
-          <div className="mt-6 text-center space-y-3">
-            <button onClick={() => setCurrentPage('signup')} className="text-blue-600 hover:text-blue-700 text-sm font-medium block w-full">
-              Create an account
-            </button>
-            <div className="border-t pt-3">
-              <button onClick={() => setCurrentPage('admin')} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-2 rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 transition text-sm">
-                🔐 Admin Panel
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // LoginPage removed - now using modal popup
 
   const SignUpPage = () => {
     const [mobile, setMobile] = useState('');
@@ -671,10 +907,12 @@ const PenumudiesApp = () => {
         }
 
         // Set current user with token for API calls
-        setCurrentUser({
+        const userData = {
           ...data.user,
           password: password
-        });
+        };
+        setCurrentUser(userData);
+        localStorage.setItem('penumudies_user', JSON.stringify(userData));
 
         setSuccess('Account created successfully!');
         setMobile('');
@@ -807,7 +1045,7 @@ const PenumudiesApp = () => {
     const activeCart = currentUser ? cart : guestCart;
     const activeWishlist = currentUser ? wishlist : guestWishlist;
 
-    const searchDatabase = products.length > 0 ? products : defaultProductDatabase;
+    const searchDatabase = products.length > 0 ? products : []
     const filteredProducts = searchDatabase.filter(product => {
       return selectedCategory === 'All' || product.category === selectedCategory;
     }).sort((a, b) => {
@@ -827,92 +1065,27 @@ const PenumudiesApp = () => {
                 <span className="font-bold text-xl text-gray-800 hidden sm:block">Penumudies</span>
               </div>
 
-              <div className="flex-1 max-w-2xl relative" ref={searchDropdownRef}>
+              <div className="flex-1 max-w-2xl mx-4">
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 text-gray-500" size={20} />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                   <input
                     ref={searchInputRef}
                     type="text"
                     placeholder="Search products..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setSearchDropdownOpen(true);
-                    }}
-                    onFocus={() => {
-                      setSearchDropdownOpen(true);
-                    }}
-                    onBlur={(e) => {
-                      // Delay closing to allow click on dropdown items
-                      setTimeout(() => {
-                        if (!searchDropdownRef.current?.contains(document.activeElement)) {
-                          setSearchDropdownOpen(false);
-                        }
-                      }, 100);
-                    }}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearchSubmit()}
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 placeholder:text-gray-400 text-black transition"
+                    onInput={handleSearchInput}
+                    autoComplete="off"
+                    spellCheck="false"
+                    className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 text-base"
                   />
+                  {showSearchResults && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
                 </div>
-
-                {searchDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white border rounded-lg shadow-xl max-h-96 overflow-y-auto z-50" onMouseDown={(e) => e.preventDefault()}>
-                    {searchQuery === '' ? (
-                      <div className="p-4">
-                        <div className="text-sm text-gray-600 mb-2 font-semibold">Trending</div>
-                        {['Milk', 'Bread', 'Butter'].map((trend, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => { 
-                              setSearchQuery(trend); 
-                              setSearchPageQuery(trend);
-                              setSearchDropdownOpen(false);
-                              setCurrentPage('search');
-                            }}
-                            className="block w-full text-left px-3 py-2 hover:bg-gray-50 rounded text-sm"
-                          >
-                            {trend}
-                          </button>
-                        ))}
-                      </div>
-                    ) : searchResults.length > 0 ? (
-                      <div className="p-2">
-                        {searchResults.slice(0, 5).map(product => (
-                          <div
-                            key={product.id}
-                            className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer"
-                            onClick={() => { 
-                              setSearchDropdownOpen(false); 
-                              setSearchPageQuery(searchQuery);
-                              setCurrentPage('search');
-                            }}
-                          >
-                            <div className="text-3xl">{product.image}</div>
-                            <div className="flex-1">
-                              <div className="font-medium">{product.name}</div>
-                              <div className="text-sm text-gray-500">{product.brand}</div>
-                            </div>
-                            <div className="font-bold">₹{product.price}</div>
-                          </div>
-                        ))}
-                        {searchResults.length > 5 && (
-                          <button
-                            onClick={() => {
-                              setSearchDropdownOpen(false);
-                              setSearchPageQuery(searchQuery);
-                              setCurrentPage('search');
-                            }}
-                            className="w-full p-3 text-blue-600 hover:bg-blue-50 rounded-lg font-medium text-sm"
-                          >
-                            View all {searchResults.length} results
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-8 text-center text-gray-500">No results found</div>
-                    )}
-                  </div>
-                )}
               </div>
 
               <button onClick={() => setShowWishlist(true)} className="relative p-2 hover:bg-gray-100 rounded-lg">
@@ -931,79 +1104,131 @@ const PenumudiesApp = () => {
 
               <div className="relative" ref={accountMenuRef}>
                 <button
-                  onClick={() => {
-                    if (currentUser) {
-                      setShowAccountMenu(!showAccountMenu);
-                    } else {
-                      setCurrentPage('login');
-                    }
-                  }}
+                  onClick={() => setShowAccountMenu(true)}
                   className="p-2 hover:bg-gray-100 rounded-lg"
                 >
                   <User size={24} className="text-gray-700" />
                 </button>
 
-                {showAccountMenu && currentUser && (
+                {showAccountMenu && (
                   <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-xl z-50">
-                    <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                          {currentUser.name.charAt(0).toUpperCase()}
+                    {currentUser ? (
+                      <>
+                        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                              {currentUser.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-800">{currentUser.name}</div>
+                              <div className="text-sm text-gray-600">{currentUser.mobile}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-gray-800">{currentUser.name}</div>
-                          <div className="text-sm text-gray-600">{currentUser.mobile}</div>
+
+                        <div className="p-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('profile');
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <User size={18} className="text-gray-600" />
+                            <span className="font-medium">My Profile</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('orders');
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <Package size={18} className="text-gray-600" />
+                            <span className="font-medium">My Orders</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowWishlist(true);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <Heart size={18} className="text-gray-600" />
+                            <span className="font-medium">My Wishlist</span>
+                          </button>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="p-2">
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setCurrentPage('profile');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <User size={18} className="text-gray-600" />
-                        <span className="font-medium">My Profile</span>
-                      </button>
+                        <div className="border-t p-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowLogoutConfirm(true);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-red-50 rounded-lg flex items-center gap-3 text-red-600"
+                          >
+                            <ArrowRight size={18} />
+                            <span className="font-medium">Logout</span>
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-4 border-b bg-gradient-to-r from-gray-50 to-blue-50">
+                          <div className="font-bold text-gray-800 text-lg">Account Menu</div>
+                        </div>
 
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setCurrentPage('orders');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <Package size={18} className="text-gray-600" />
-                        <span className="font-medium">My Orders</span>
-                      </button>
+                        <div className="p-3 space-y-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowLoginModal(true);
+                            }}
+                            className="w-full bg-white text-gray-800 py-2 rounded-lg font-semibold border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 justify-center"
+                          >
+                            <Lock size={18} />
+                            Login
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setShowWishlist(true);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <Heart size={18} className="text-gray-600" />
-                        <span className="font-medium">My Wishlist</span>
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowSignupModal(true);
+                            }}
+                            className="w-full bg-white text-gray-800 py-2 rounded-lg font-semibold border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 justify-center"
+                          >
+                            <User size={18} />
+                            Sign Up
+                          </button>
 
-                    <div className="border-t p-2">
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setShowLogoutConfirm(true);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-red-50 rounded-lg flex items-center gap-3 text-red-600"
-                      >
-                        <ArrowRight size={18} />
-                        <span className="font-medium">Logout</span>
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowAdminLoginModal(true);
+                            }}
+                            className="w-full bg-white text-gray-800 py-2 rounded-lg font-semibold border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 justify-center"
+                          >
+                            <Lock size={18} />
+                            Admin Panel
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('home');
+                              setSuccess('Welcome! You are browsing as a guest.');
+                              setTimeout(() => setSuccess(''), 2000);
+                            }}
+                            className="w-full bg-white text-gray-800 py-2 rounded-lg font-semibold border border-gray-300 hover:bg-gray-50 transition flex items-center gap-2 justify-center"
+                          >
+                            <User size={18} />
+                            Guest Account
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1037,6 +1262,108 @@ const PenumudiesApp = () => {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* Search Results Section */}
+          {showSearchResults && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  Search Results ({searchResults.length})
+                </h2>
+                <button
+                  onClick={clearSearch}
+                  className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                >
+                  <X size={18} />
+                  Clear Search
+                </button>
+              </div>
+              
+              {searchResults.length === 0 ? (
+                <div className="bg-white rounded-xl p-16 text-center border-2 border-dashed border-gray-200">
+                  <Search size={64} className="mx-auto text-gray-300 mb-4" />
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">No products found</h3>
+                  <p className="text-gray-600 mb-4">Try searching with different keywords</p>
+                  <button
+                    onClick={clearSearch}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Browse All Products
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  {searchResults.map(product => (
+                    <div key={product.id} className="bg-white rounded-lg border overflow-hidden hover:shadow-lg transition">
+                      <div className="relative p-4">
+                        <div className="text-5xl text-center mb-2">{product.image}</div>
+                        
+                        <button
+                          onClick={() => toggleWishlist(product)}
+                          className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md"
+                        >
+                          <Heart size={16} className={isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'} />
+                        </button>
+
+                        {product.stock === 0 && (
+                          <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                            Out of Stock
+                          </div>
+                        )}
+
+                        <div className="mb-2">
+                          <h3 className="font-semibold text-sm line-clamp-2">{product.name}</h3>
+                          <p className="text-xs text-gray-500">{product.brand}</p>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-lg font-bold">₹{product.price}</span>
+                          <span className="text-xs text-gray-400 line-through">₹{product.oldPrice}</span>
+                        </div>
+
+                        {activeCart.find(item => item.productId === product.id) ? (
+                          <div className="flex items-center justify-between border border-blue-600 rounded-lg">
+                            <button
+                              onClick={() => {
+                                const item = activeCart.find(item => item.productId === product.id);
+                                if (item) updateCartQuantity(product.id, item.quantity - 1);
+                              }}
+                              className="px-3 py-2 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="font-semibold text-blue-600">
+                              {activeCart.find(item => item.productId === product.id)?.quantity}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const item = activeCart.find(item => item.productId === product.id);
+                                if (item) updateCartQuantity(product.id, item.quantity + 1);
+                              }}
+                              className="px-3 py-2 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addToCart(product)}
+                            disabled={product.stock === 0}
+                            className={`w-full py-2 rounded-lg font-semibold text-sm ${
+                              product.stock === 0 ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                          >
+                            {product.stock === 0 ? 'Out of Stock' : 'Add'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!showSearchResults && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {filteredProducts.map(product => (
               <div key={product.id} className="bg-white rounded-lg border overflow-hidden hover:shadow-lg transition">
@@ -1105,6 +1432,7 @@ const PenumudiesApp = () => {
               </div>
             ))}
           </div>
+          )}
         </div>
 
         {/* Cart Panel */}
@@ -1262,17 +1590,6 @@ const PenumudiesApp = () => {
           </div>
         )}
 
-        {showLoginSuccess && (
-          <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-            <div className="flex items-center gap-2">
-              <Check size={20} />
-              <span>Login successful!</span>
-            </div>
-          </div>
-        )}
-
-
-
         {/* Logout Confirmation */}
         {showLogoutConfirm && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1300,153 +1617,9 @@ const PenumudiesApp = () => {
     );
   };
 
-  // Search Results Page
-  const SearchPage = () => {
-    const activeCart = currentUser ? cart : guestCart;
-    const activeWishlist = currentUser ? wishlist : guestWishlist;
-
-    React.useEffect(() => {
-      setSearchQuery(searchPageQuery);
-    }, [searchPageQuery]);
-
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b px-4 py-4">
-          <div className="max-w-7xl mx-auto">
-            <button
-              onClick={() => setCurrentPage('home')}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-4"
-            >
-              ← Back to Home
-            </button>
-            <h1 className="text-2xl font-bold text-gray-800">
-              Search Results for "{searchPageQuery}"
-            </h1>
-            <p className="text-gray-600 mt-1">{searchResults.length} products found</p>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          {searchResults.length === 0 ? (
-            <div className="bg-white rounded-lg p-12 text-center">
-              <Search size={64} className="mx-auto text-gray-300 mb-4" />
-              <h2 className="text-xl font-bold text-gray-800 mb-2">No results found</h2>
-              <p className="text-gray-600 mb-6">Try searching for something else</p>
-              <button
-                onClick={() => setCurrentPage('home')}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Browse All Products
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {searchResults.map(product => (
-                <div key={product.id} className="bg-white rounded-lg border overflow-hidden hover:shadow-lg transition">
-                  <div className="relative p-4">
-                    <div className="text-5xl text-center mb-2">{product.image}</div>
-                    
-                    <button
-                      onClick={() => toggleWishlist(product)}
-                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md"
-                    >
-                      <Heart size={18} className={isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-gray-400'} />
-                    </button>
-
-                    {product.stock === 0 && (
-                      <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
-                        Out of Stock
-                      </div>
-                    )}
-
-                    <div className="mb-2">
-                      <h3 className="font-semibold text-sm line-clamp-2">{product.name}</h3>
-                      <p className="text-xs text-gray-500">{product.brand}</p>
-                    </div>
-
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-lg font-bold">₹{product.price}</span>
-                      <span className="text-xs text-gray-400 line-through">₹{product.oldPrice}</span>
-                    </div>
-
-                    {activeCart.find(item => item.productId === product.id) ? (
-                      <div className="flex items-center justify-between border border-blue-600 rounded-lg">
-                        <button
-                          onClick={() => {
-                            const item = activeCart.find(item => item.productId === product.id);
-                            if (item) updateCartQuantity(product.id, item.quantity - 1);
-                          }}
-                          className="px-3 py-2 text-blue-600 hover:bg-blue-50"
-                        >
-                          <Minus size={16} />
-                        </button>
-                        <span className="font-semibold text-blue-600">
-                          {activeCart.find(item => item.productId === product.id)?.quantity}
-                        </span>
-                        <button
-                          onClick={() => {
-                            const item = activeCart.find(item => item.productId === product.id);
-                            if (item) updateCartQuantity(product.id, item.quantity + 1);
-                          }}
-                          className="px-3 py-2 text-blue-600 hover:bg-blue-50"
-                        >
-                          <Plus size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => addToCart(product)}
-                        disabled={product.stock === 0}
-                        className={`w-full py-2 rounded-lg font-semibold ${
-                          product.stock === 0 ? 'bg-gray-200 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
-                      >
-                        {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   // Profile & Addresses Page
   const ProfilePage = () => {
     const [newAddress, setNewAddress] = useState({ name: '', phone: '', address: '', pincode: '', city: '' });
-
-    // Fetch addresses from database when profile loads
-    useEffect(() => {
-      const fetchAddresses = async () => {
-        if (!currentUser?.mobile) return;
-        
-        try {
-          const response = await fetch(`/api/addresses?userMobile=${currentUser.mobile}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.addresses && Array.isArray(data.addresses)) {
-              // Map database addresses to local format
-              const mappedAddresses = data.addresses.map((addr: any) => ({
-                id: addr._id,
-                name: addr.name,
-                phone: addr.phone,
-                address: addr.address,
-                city: addr.city,
-                pincode: addr.pincode,
-              }));
-              setAddresses(mappedAddresses);
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching addresses:', err);
-        }
-      };
-
-      fetchAddresses();
-    }, [currentUser?.mobile]);
 
     const handleAddAddress = async () => {
       if (!newAddress.name || !newAddress.phone || !newAddress.address || !newAddress.pincode || !newAddress.city) {
@@ -1515,17 +1688,38 @@ const PenumudiesApp = () => {
       }
     };
 
+
+
+    // If user is not logged in and navigates to profile, open account dropdown and return to home
+    useEffect(() => {
+      if (currentPage === 'profile' && !currentUser) {
+        try {
+          setShowAccountMenu(true);
+          // Navigate back to home so the dropdown is visible on the main page
+          setCurrentPage('home');
+        } catch (e) {
+          // safe noop in case setters are unavailable
+        }
+      }
+    }, [currentPage, currentUser]);
+
+    // If not logged in, do not render the profile page (dropdown will be shown)
+    if (!currentUser) return null;
+
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 py-8">
-          <button
-            onClick={() => setCurrentPage('home')}
-            className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
-          >
-            ← Back to Home
-          </button>
+          {/* Show profile content when logged in */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setCurrentPage('home')}
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-700 mb-6"
+            >
+              ← Back to Home
+            </button>
 
-          <h1 className="text-3xl font-bold text-gray-800 mb-8">My Profile</h1>
+            <h1 className="text-3xl font-bold text-gray-800 mb-8">My Profile</h1>
 
           <div className="grid md:grid-cols-3 gap-6">
             <div className="bg-white rounded-lg shadow-sm p-6">
@@ -1534,58 +1728,53 @@ const PenumudiesApp = () => {
                   {currentUser?.name.charAt(0).toUpperCase()}
                 </div>
                 
-                {/* Inline Name Edit */}
-                <div className="w-full">
-                  {isEditingName ? (
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        autoFocus
-                        maxLength={50}
-                        className="w-full px-3 py-2 border-2 border-blue-500 rounded-lg focus:outline-none text-center text-gray-800 font-bold text-lg"
-                        placeholder="Enter name"
-                      />
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={handleSaveName}
-                          disabled={editNameLoading}
-                          className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          <Check size={16} />
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancelEditName}
-                          disabled={editNameLoading}
-                          className="px-4 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          <X size={16} />
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2">
-                      <h2 className="text-xl font-bold text-gray-800">{currentUser?.name}</h2>
+                {isEditingName ? (
+                  <div className="w-full space-y-3">
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-blue-500 rounded-lg focus:outline-none text-center text-gray-800 font-bold"
+                      placeholder="Enter name"
+                    />
+                    <div className="flex gap-2 justify-center">
                       <button
-                        onClick={() => {
-                          if (currentUser) {
-                            setEditName(currentUser.name);
-                            setIsEditingName(true);
-                          }
-                        }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Edit name"
+                        type="button"
+                        onClick={handleSaveName}
+                        disabled={editNameLoading}
+                        className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50"
                       >
-                        <Edit2 size={18} className="text-gray-600 hover:text-blue-600" />
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelEditName}
+                        disabled={editNameLoading}
+                        className="px-4 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-sm font-medium disabled:opacity-50"
+                      >
+                        Cancel
                       </button>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    <h2 className="text-xl font-bold text-gray-800">{currentUser?.name}</h2>
+                    <button
+                      onClick={() => {
+                        if (currentUser) {
+                          setEditName(currentUser.name);
+                          setIsEditingName(true);
+                        }
+                      }}
+                      className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="Edit name"
+                    >
+                      <Edit2 size={18} className="text-gray-600 hover:text-blue-600" />
+                    </button>
+                  </div>
+                )}
                 
-                <p className="text-gray-600 mt-2">{currentUser?.mobile}</p>
+                <p className="text-gray-600 mt-4">{currentUser?.mobile}</p>
               </div>
             </div>
 
@@ -1596,7 +1785,50 @@ const PenumudiesApp = () => {
                   <div className="space-y-3">
                     <div>
                       <label className="text-sm font-medium text-gray-600">Mobile Number</label>
-                      <div className="text-lg text-gray-800 font-semibold">{currentUser?.mobile}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-lg text-gray-800 font-semibold">{currentUser?.mobile}</div>
+                        <button
+                          onClick={() => {
+                            if (currentUser) {
+                              setEditMobile(currentUser.mobile);
+                              setIsEditingMobile(true);
+                            }
+                          }}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Edit mobile"
+                        >
+                          <Edit2 size={16} className="text-gray-600 hover:text-blue-600" />
+                        </button>
+                      </div>
+                      {isEditingMobile && (
+                        <div className="mt-3 space-y-2">
+                          <input
+                            type="tel"
+                            value={editMobile}
+                            onChange={(e) => setEditMobile(e.target.value)}
+                            className="w-full px-3 py-2 border-2 border-blue-500 rounded-lg focus:outline-none text-gray-800"
+                            placeholder="Enter mobile number"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleSaveMobile}
+                              disabled={editMobileLoading}
+                              className="px-4 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium disabled:opacity-50"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEditMobile}
+                              disabled={editMobileLoading}
+                              className="px-4 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-sm font-medium disabled:opacity-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="text-sm font-medium text-gray-600">Account Status</label>
@@ -1606,31 +1838,169 @@ const PenumudiesApp = () => {
                 </div>
 
                 <div className="border-t pt-6">
-                  <h2 className="text-xl font-bold text-gray-800 mb-4">🚀 Quick Actions</h2>
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">📍 Saved Addresses</h2>
+                  
+                  {/* Display Saved Addresses */}
+                  <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                    {addresses.length === 0 ? (
+                      <p className="text-gray-500 text-sm">No saved addresses yet</p>
+                    ) : (
+                      addresses.map((addr: any, index: number) => (
+                        <div key={addr._id || addr.id || index} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <div className="font-semibold text-gray-800">{addr.title || addr.name}</div>
+                              <div className="text-sm text-gray-600 mt-1">{addr.address}</div>
+                              <div className="text-sm text-gray-600">{addr.city}, {addr.state || 'N/A'} - {addr.pincode}</div>
+                              <div className="text-sm text-gray-600 mt-1">📞 {addr.phone}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  fetch(`/api/addresses?addressId=${addr._id || addr.id}`, {
+                                    method: 'DELETE',
+                                  }).then(() => {
+                                    setAddresses(addresses.filter((a: any) => (a._id || a.id) !== (addr._id || addr.id)));
+                                    setSuccess('Address deleted');
+                                    setTimeout(() => setSuccess(''), 2000);
+                                  });
+                                } catch (err) {
+                                  setError('Failed to delete address');
+                                  setTimeout(() => setError(''), 3000);
+                                }
+                              }}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium ml-2"
+                            >
+                              ✕ Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Add Address Button */}
                   <button
-                    onClick={() => setCurrentPage('orders')}
-                    className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-semibold flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => setShowAddAddress(!showAddAddress)}
+                    className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 font-medium text-sm transition"
                   >
-                    <Package size={20} />
-                    View My Orders
+                    {showAddAddress ? '✕ Cancel' : '+ Add New Address'}
                   </button>
+
+                  {/* Add Address Form */}
+                  {showAddAddress && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-200 space-y-3">
+                      <h3 className="font-semibold text-gray-800 mb-3">Add New Address</h3>
+                      <input
+                        type="text"
+                        placeholder="Address Title (e.g., Home, Office)"
+                        value={newAddress.name}
+                        onChange={(e) => setNewAddress({ ...newAddress, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
+                      />
+                      <input
+                        type="tel"
+                        placeholder="Phone Number"
+                        value={newAddress.phone}
+                        onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Full Address"
+                        value={newAddress.address}
+                        onChange={(e) => setNewAddress({ ...newAddress, address: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
+                      />
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={newAddress.city}
+                        onChange={(e) => setNewAddress({ ...newAddress, city: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Postal Code"
+                        value={newAddress.pincode}
+                        onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 text-black"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!newAddress.name || !newAddress.phone || !newAddress.address || !newAddress.pincode || !newAddress.city) {
+                            setError('Please fill all fields');
+                            setTimeout(() => setError(''), 3000);
+                            return;
+                          }
+
+                          try {
+                            const response = await fetch('/api/addresses', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({
+                                userMobile: currentUser?.mobile,
+                                name: newAddress.name,
+                                phone: newAddress.phone,
+                                address: newAddress.address,
+                                pincode: newAddress.pincode,
+                                city: newAddress.city,
+                                title: newAddress.name,
+                              }),
+                            });
+
+                            if (!response.ok) {
+                              const errorData = await response.json();
+                              throw new Error(errorData.error || 'Failed to save address');
+                            }
+
+                            const result = await response.json();
+                            
+                            const newAddr = {
+                              _id: result.address._id,
+                              id: result.address._id,
+                              name: newAddress.name,
+                              phone: newAddress.phone,
+                              address: newAddress.address,
+                              pincode: newAddress.pincode,
+                              city: newAddress.city,
+                              title: newAddress.name,
+                            };
+                            
+                            setAddresses([...addresses, newAddr]);
+                            setNewAddress({ name: '', phone: '', address: '', pincode: '', city: '' });
+                            setShowAddAddress(false);
+                            setSuccess('Address saved successfully');
+                            setTimeout(() => setSuccess(''), 2000);
+                          } catch (err) {
+                            console.error('Error saving address:', err);
+                            setError(err instanceof Error ? err.message : 'Failed to save address');
+                            setTimeout(() => setError(''), 3000);
+                          }
+                        }}
+                        className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-medium"
+                      >
+                        Save Address
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="border-t pt-6">
-                  <h2 className="text-xl font-bold text-gray-800 mb-4">📍 Note</h2>
-                  <p className="text-gray-600 text-sm">
-                    Addresses can be added during checkout. You can save multiple delivery addresses for quick checkout next time.
-                  </p>
-                </div>
+
               </div>
             </div>
           </div>
+            </div>
         </div>
       </div>
     );
   };
 
-  // Checkout Page
   const CheckoutPage = () => {
     const activeCart = currentUser ? cart : guestCart;
     const [newAddress, setNewAddress] = useState({ name: '', phone: '', address: '', pincode: '', city: '' });
@@ -1882,8 +2252,9 @@ const PenumudiesApp = () => {
         setProcessingOrder(false);
         setSuccess('Order placed successfully!');
         
-        // Refresh both user and admin orders
+        // Refresh both user and admin orders AND products (to update stock)
         await fetchOrders();
+        await fetchProducts();
         
         setTimeout(() => {
           setSuccess('');
@@ -1900,7 +2271,7 @@ const PenumudiesApp = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 py-8">
-          <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6">
+          <button type="button" onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6">
             ← Back
           </button>
 
@@ -1986,19 +2357,19 @@ const PenumudiesApp = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {addresses.map(addr => (
+                    {addresses.map((addr, index) => (
                       <div
-                        key={addr.id}
-                        onClick={() => setSelectedAddress(addr.id)}
+                        key={addr._id || addr.id || index}
+                        onClick={() => setSelectedAddress(addr._id || addr.id)}
                         className={`p-4 border-2 rounded-lg cursor-pointer transition ${
-                          selectedAddress === addr.id 
+                          selectedAddress === (addr._id || addr.id)
                             ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-200' 
                             : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                         }`}
                       >
                         <div className="flex items-start gap-3">
                           <div className="text-2xl">
-                            {selectedAddress === addr.id ? '✓' : '📍'}
+                            {selectedAddress === (addr._id || addr.id) ? '✓' : '📍'}
                           </div>
                           <div className="flex-1">
                             <div className="font-semibold text-gray-800">{addr.name}</div>
@@ -2037,15 +2408,25 @@ const PenumudiesApp = () => {
                   {['COD', 'UPI', 'Card'].map(method => (
                     <button
                       key={method}
-                      onClick={() => setPaymentMethod(method)}
+                      onClick={() => {
+                        if (method === 'Card') {
+                          setError('Card payment is currently unavailable');
+                          setTimeout(() => setError(''), 3000);
+                          return;
+                        }
+                        setPaymentMethod(method);
+                      }}
                       className={`w-full p-4 border-2 rounded-lg text-left flex items-center justify-between ${
                         paymentMethod === method ? 'border-blue-600 bg-blue-50' : 'border-gray-200'
-                      }`}
+                      } ${method === 'Card' ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      disabled={method === 'Card'}
                     >
                       <span className="font-medium">{method}</span>
-                      {method === 'UPI' && paymentMethod === method && (
+                      {method === 'Card' ? (
+                        <span className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full">Coming Soon</span>
+                      ) : method === 'UPI' && paymentMethod === method ? (
                         <span className="text-xs bg-green-500 text-white px-3 py-1 rounded-full">Powered by Razorpay</span>
-                      )}
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -2191,7 +2572,7 @@ const PenumudiesApp = () => {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 py-8">
-          <button onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6 hover:text-blue-700">← Back</button>
+          <button type="button" onClick={() => setCurrentPage('home')} className="flex items-center gap-2 text-blue-600 mb-6 hover:text-blue-700">← Back</button>
 
           <h1 className="text-3xl font-bold mb-8">📦 My Orders</h1>
 
@@ -2219,7 +2600,7 @@ const PenumudiesApp = () => {
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="font-bold text-lg">Order #{(order.orderId || order.id).slice(-8)}</div>
-                        <div className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</div>
+                        <div className="text-sm text-gray-500">{new Date(order.createdAt).toLocaleString()}</div>
                       </div>
                       <div className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>
                         {getStatusIcon(order.status)} {order.status}
@@ -2295,7 +2676,7 @@ const PenumudiesApp = () => {
                     </div>
                     <div className="text-sm">
                       <span className="text-gray-600">Ordered:</span>
-                      <span className="ml-1">{new Date(selectedOrder.createdAt).toLocaleDateString()}</span>
+                      <span className="ml-1">{new Date(selectedOrder.createdAt).toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -2397,13 +2778,6 @@ const PenumudiesApp = () => {
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
-        // Only close if clicked outside search area completely
-        const target = e.target as HTMLElement;
-        if (!target.closest('input[placeholder="Search products..."]')) {
-          setSearchDropdownOpen(false);
-        }
-      }
       if (accountMenuRef.current && !accountMenuRef.current.contains(e.target as Node)) {
         setShowAccountMenu(false);
       }
@@ -2437,6 +2811,10 @@ const PenumudiesApp = () => {
       const data = await response.json();
       setAdminToken(data.token);
       setAdminLoggedIn(true);
+      localStorage.setItem('penumudies_admin', JSON.stringify({
+        token: data.token,
+        username: adminUsername
+      }));
       setAdminPassword('');
       setSuccess('Admin login successful');
       setTimeout(() => setSuccess(''), 2000);
@@ -2455,7 +2833,8 @@ const PenumudiesApp = () => {
     setAdminPassword('');
     setEditingProduct(null);
     setShowAdminLogoutConfirm(false);
-    setCurrentPage('login');
+    setCurrentPage('home');
+    localStorage.removeItem('penumudies_admin');
     setSuccess('Admin logged out successfully');
     setTimeout(() => setSuccess(''), 2000);
   };
@@ -2565,55 +2944,81 @@ const PenumudiesApp = () => {
 
   // Add New Product Handler
   const handleAddProduct = async () => {
-    if (!newProduct.name || !newProduct.brand || !newProduct.price || !newProduct.oldPrice || !newProduct.image) {
+    // Get values directly from refs
+    const name = productNameRef.current?.value || '';
+    const brand = productBrandRef.current?.value || '';
+    const price = productPriceRef.current?.value || '';
+    const oldPrice = productOldPriceRef.current?.value || '';
+    const stock = productStockRef.current?.value || '';
+    const category = productCategoryRef.current?.value || 'Dairy';
+    const image = productImageRef.current?.value || '';
+    const deliveryTime = productDeliveryTimeRef.current?.value || '30 mins';
+    const description = productDescriptionRef.current?.value || '';
+    const popular = productPopularRef.current?.checked || false;
+
+    console.log('Adding product with:', { name, brand, price, oldPrice, stock, category, image });
+
+    // Validate category
+    if (category === 'Other') {
+      setError('Please add a new category or select an existing one');
+      return;
+    }
+
+    if (!name || !brand || !price || !oldPrice || !image) {
       setError('Please fill all required fields');
       return;
     }
 
     setAdminLoading(true);
-    setError(''); // Clear any previous errors
+    setError('');
     try {
       const response = await fetch('/api/products/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: newProduct.name,
-          brand: newProduct.brand,
-          price: parseFloat(newProduct.price),
-          oldPrice: parseFloat(newProduct.oldPrice),
-          stock: parseInt(newProduct.stock) || 0,
-          category: newProduct.category,
-          image: newProduct.image,
-          popular: newProduct.popular,
-          deliveryTime: newProduct.deliveryTime,
-          description: newProduct.description,
+          name,
+          brand,
+          price: parseFloat(price),
+          oldPrice: parseFloat(oldPrice),
+          stock: parseInt(stock) || 0,
+          category,
+          image,
+          popular,
+          deliveryTime,
+          description,
         }),
       });
 
       const data = await response.json();
+      console.log('API Response:', { status: response.status, ok: response.ok, data });
 
       if (!response.ok) {
+        console.error('API Error:', data);
         setError(data.error || 'Failed to add product');
         setAdminLoading(false);
         return;
       }
 
+      console.log('Product added successfully:', data.product);
       // Add the new product to the products array
       setProducts([...products, { ...data.product }]);
       
-      // Reset form
-      setNewProduct({
-        name: '',
-        brand: '',
-        price: '',
-        oldPrice: '',
-        stock: '',
-        category: 'Dairy',
-        image: '',
-        popular: false,
-        deliveryTime: '30 mins',
-        description: '',
-      });
+      // Reset form inputs
+      if (productNameRef.current) productNameRef.current.value = '';
+      if (productBrandRef.current) productBrandRef.current.value = '';
+      if (productPriceRef.current) productPriceRef.current.value = '';
+      if (productOldPriceRef.current) productOldPriceRef.current.value = '';
+      if (productStockRef.current) productStockRef.current.value = '';
+      if (productImageRef.current) productImageRef.current.value = '';
+      if (productDeliveryTimeRef.current) productDeliveryTimeRef.current.value = '30 mins';
+      if (productDescriptionRef.current) productDescriptionRef.current.value = '';
+      if (productPopularRef.current) productPopularRef.current.checked = false;
+      if (productCategoryRef.current) productCategoryRef.current.value = 'Dairy';
+      
+      // Reset category input form
+      setShowOtherCategoryInput(false);
+      setNewCategoryInput('');
+      
       setShowAddProductForm(false);
       setSuccess('Product added successfully');
       
@@ -2636,7 +3041,6 @@ const PenumudiesApp = () => {
       if (response.ok) {
         const data = await response.json();
         setAdminOrders(data.orders);
-        setOrders(data.orders);
       }
     } catch (err) {
       console.error('Failed to fetch orders:', err);
@@ -2673,10 +3077,9 @@ const PenumudiesApp = () => {
         return;
       }
 
-      // Update both admin orders and user orders arrays
+      // Update admin orders array
       const updatedOrders = adminOrders.map(o => o.orderId === selectedOrder.orderId ? data.order : o);
       setAdminOrders(updatedOrders);
-      setOrders(updatedOrders);
       
       // Update the selected order so users tracking see the change immediately
       setSelectedOrder(data.order);
@@ -2726,10 +3129,9 @@ const PenumudiesApp = () => {
         return;
       }
 
-      // Update both admin orders and user orders arrays
+      // Update admin orders array
       const updatedOrders = adminOrders.map(o => o.orderId === selectedOrder.orderId ? data.order : o);
       setAdminOrders(updatedOrders);
-      setOrders(updatedOrders);
       
       // Update the selected order so users tracking see the change immediately
       setSelectedOrder(data.order);
@@ -2788,7 +3190,7 @@ const PenumudiesApp = () => {
                   type="text"
                   value={adminUsername}
                   onChange={(e) => setAdminUsername(e.target.value)}
-                  placeholder="Enter username: admin"
+                  placeholder="Enter username: sampath"
                   autoComplete="off"
                   maxLength={100}
                   onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
@@ -2801,7 +3203,7 @@ const PenumudiesApp = () => {
                   type="password"
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="Enter password: admin@123"
+                  placeholder="Enter password: siddu@123"
                   autoComplete="off"
                   maxLength={100}
                   onKeyPress={(e) => e.key === 'Enter' && handleAdminLogin()}
@@ -2821,12 +3223,6 @@ const PenumudiesApp = () => {
               >
                 Back to Home
               </button>
-            </div>
-
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-sm text-gray-600"><span className="font-semibold">Demo Credentials:</span></p>
-              <p className="text-sm text-gray-600">Username: <code className="bg-white px-2 py-1 rounded">admin</code></p>
-              <p className="text-sm text-gray-600">Password: <code className="bg-white px-2 py-1 rounded">admin@123</code></p>
             </div>
           </div>
         </div>
@@ -2931,159 +3327,181 @@ const PenumudiesApp = () => {
 
                 {/* Add Product Form */}
                 {showAddProductForm && (
-                  <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
-                    <h3 className="text-lg font-bold text-gray-800 mb-4">Add New Product</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Product Name */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
-                        <input
-                          type="text"
-                          value={newProduct.name}
-                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                          placeholder="e.g., Fresh Milk"
-                          autoComplete="off"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
-                        />
-                      </div>
+                  <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-sm">
+                    <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+                      <h3 className="text-lg font-bold text-gray-800">Add New Product</h3>
+                      <p className="text-sm text-gray-500 mt-1">Fill in the details below to add a new product.</p>
+                    </div>
 
-                      {/* Brand */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Brand *</label>
-                        <input
-                          type="text"
-                          value={newProduct.brand}
-                          onChange={(e) => setNewProduct({ ...newProduct, brand: e.target.value })}
-                          placeholder="e.g., Amul"
-                          autoComplete="off"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
-                        />
-                      </div>
+                    <div className="px-6 py-5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Product Name *</label>
+                          <input
+                            ref={productNameRef}
+                            type="text"
+                            placeholder="e.g., Fresh Milk"
+                            autoComplete="off"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-800 text-base"
+                          />
+                        </div>
 
-                      {/* Current Price */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Current Price (₹) *</label>
-                        <input
-                          type="number"
-                          value={newProduct.price}
-                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                          placeholder="0"
-                          min="0"
-                          step="0.01"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-                        />
-                      </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Brand *</label>
+                          <input
+                            ref={productBrandRef}
+                            type="text"
+                            placeholder="e.g., Amul"
+                            autoComplete="off"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-800 text-base"
+                          />
+                        </div>
 
-                      {/* Original Price */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Original Price (₹) *</label>
-                        <input
-                          type="number"
-                          value={newProduct.oldPrice}
-                          onChange={(e) => setNewProduct({ ...newProduct, oldPrice: e.target.value })}
-                          placeholder="0"
-                          min="0"
-                          step="0.01"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-                        />
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Current Price (₹) *</label>
+                          <input
+                            ref={productPriceRef}
+                            type="number"
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-base"
+                          />
+                        </div>
 
-                      {/* Stock */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity</label>
-                        <input
-                          type="number"
-                          value={newProduct.stock}
-                          onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
-                          placeholder="0"
-                          min="0"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-                        />
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Original Price (₹) *</label>
+                          <input
+                            ref={productOldPriceRef}
+                            type="number"
+                            placeholder="0"
+                            min="0"
+                            step="0.01"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-base"
+                          />
+                        </div>
 
-                      {/* Category */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                        <select
-                          value={newProduct.category}
-                          onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-                        >
-                          <option>Dairy</option>
-                          <option>Bakery</option>
-                          <option>Snacks</option>
-                          <option>Beverages</option>
-                          <option>Instant Food</option>
-                          <option>Personal Care</option>
-                          <option>Fruits</option>
-                          <option>Vegetables</option>
-                          <option>Other</option>
-                        </select>
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Stock Quantity</label>
+                          <input
+                            ref={productStockRef}
+                            type="number"
+                            placeholder="0"
+                            min="0"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-base"
+                          />
+                        </div>
 
-                      {/* Image (Emoji) */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Image / Emoji *</label>
-                        <input
-                          type="text"
-                          value={newProduct.image}
-                          onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                          placeholder="e.g., 🥛 or paste emoji"
-                          maxLength={2}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-2xl text-center text-gray-800"
-                        />
-                      </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                          <select
+                            ref={productCategoryRef}
+                            defaultValue="Dairy"
+                            onChange={(e) => handleCategoryChange(e.target.value)}
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-base"
+                          >
+                            {categories.filter(cat => cat !== 'All').map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                            <option value="Other">Other (Add New)</option>
+                          </select>
+                        </div>
 
-                      {/* Delivery Time */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Time</label>
-                        <input
-                          type="text"
-                          value={newProduct.deliveryTime}
-                          onChange={(e) => setNewProduct({ ...newProduct, deliveryTime: e.target.value })}
-                          placeholder="e.g., 30 mins"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800"
-                        />
-                      </div>
+                        {showOtherCategoryInput && (
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">New Category Name</label>
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Enter new category name"
+                                value={newCategoryInput}
+                                onChange={(e) => setNewCategoryInput(e.target.value)}
+                                onKeyPress={(e) => e.key === 'Enter' && handleAddNewCategory()}
+                                className="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-base"
+                              />
+                              <button
+                                onClick={handleAddNewCategory}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium flex items-center gap-1"
+                              >
+                                <Plus size={18} />
+                                Add
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setShowOtherCategoryInput(false);
+                                  setNewCategoryInput('');
+                                  if (productCategoryRef.current) {
+                                    productCategoryRef.current.value = 'Dairy';
+                                  }
+                                }}
+                                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 font-medium"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                      {/* Description */}
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                        <textarea
-                          value={newProduct.description}
-                          onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-                          placeholder="Product description..."
-                          rows={3}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-600 text-gray-800 resize-none"
-                        />
-                      </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Image / Emoji *</label>
+                          <input
+                            ref={productImageRef}
+                            type="text"
+                            placeholder="e.g., 🥛 or paste emoji"
+                            maxLength={2}
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xl text-center text-gray-800"
+                          />
+                        </div>
 
-                      {/* Popular Checkbox */}
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={newProduct.popular}
-                          onChange={(e) => setNewProduct({ ...newProduct, popular: e.target.checked })}
-                          id="popular"
-                          className="h-4 w-4"
-                        />
-                        <label htmlFor="popular" className="text-sm text-gray-700">Mark as Popular</label>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Time</label>
+                          <input
+                            ref={productDeliveryTimeRef}
+                            type="text"
+                            placeholder="e.g., 30 mins"
+                            defaultValue="30 mins"
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-800 text-base"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                          <textarea
+                            ref={productDescriptionRef}
+                            placeholder="Product description..."
+                            rows={3}
+                            className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-500 text-gray-800 resize-none text-base"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <input
+                            ref={productPopularRef}
+                            type="checkbox"
+                            id="popular"
+                            className="h-4 w-4"
+                          />
+                          <label htmlFor="popular" className="text-sm text-gray-700">Mark as Popular</label>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Form Buttons */}
-                    <div className="flex gap-3 mt-4">
+                    <div className="px-6 pb-6 flex gap-3">
                       <button
                         onClick={handleAddProduct}
                         disabled={adminLoading}
-                        className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-green-400 font-medium flex items-center justify-center gap-2"
+                        className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-400 font-medium flex items-center justify-center gap-2"
                       >
                         <Plus size={18} />
                         {adminLoading ? 'Adding...' : 'Add Product'}
                       </button>
                       <button
-                        onClick={() => setShowAddProductForm(false)}
-                        className="flex-1 bg-gray-400 text-white py-2 rounded-lg hover:bg-gray-500 font-medium"
+                        onClick={() => {
+                          setShowAddProductForm(false);
+                          setShowOtherCategoryInput(false);
+                          setNewCategoryInput('');
+                        }}
+                        className="flex-1 bg-white text-gray-700 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 font-medium"
                       >
                         Cancel
                       </button>
@@ -3102,7 +3520,7 @@ const PenumudiesApp = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {(products.length > 0 ? products : defaultProductDatabase).map(product => (
+                      {(products.length > 0 ? products : []).map(product => (
                         <tr key={product.id || product._id} className="border-b hover:bg-gray-50">
                           <td className="py-3 px-2">
                             <div className="flex items-center gap-3">
@@ -3230,6 +3648,7 @@ const PenumudiesApp = () => {
                           <th className="text-left py-3 px-2">Order ID</th>
                           <th className="text-left py-3 px-2">Customer</th>
                           <th className="text-left py-3 px-2">Amount</th>
+                          <th className="text-left py-3 px-2">Placed</th>
                           <th className="text-left py-3 px-2">Status</th>
                           <th className="text-left py-3 px-2">Payment</th>
                         </tr>
@@ -3249,6 +3668,7 @@ const PenumudiesApp = () => {
                                 <div className="text-xs text-gray-500">{order.userMobile}</div>
                               </td>
                               <td className="py-3 px-2 font-semibold">₹{order.total?.toFixed(2)}</td>
+                              <td className="py-3 px-2 text-xs text-gray-600">{new Date(order.createdAt).toLocaleString()}</td>
                               <td className="py-3 px-2">
                                 <span className={`px-2 py-1 rounded text-xs font-medium ${
                                   order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
@@ -3261,13 +3681,13 @@ const PenumudiesApp = () => {
                                 </span>
                               </td>
                               <td className="py-3 px-2 text-xs">
-                                {order.paymentMethod === 'UPI' ? '🔵 UPI' : order.paymentMethod === 'COD' ? '💵 COD' : '💳 Card'}
+                                {order.paymentMethod === 'UPI' ? '🔵 UPI' : order.paymentMethod === 'COD' ? '💵 Cash on Delivery' : '💳 Card'}
                               </td>
                             </tr>
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="py-8 text-center text-gray-500">No orders found</td>
+                            <td colSpan={6} className="py-8 text-center text-gray-500">No orders found</td>
                           </tr>
                         )}
                       </tbody>
@@ -3314,6 +3734,11 @@ const PenumudiesApp = () => {
                         <div className="text-xl font-bold text-blue-600">₹{selectedOrder.total?.toFixed(2)}</div>
                       </div>
 
+                      <div className="pb-4 border-b">
+                        <div className="text-xs text-gray-600">Ordered At</div>
+                        <div className="text-sm text-gray-800">{new Date(selectedOrder.createdAt).toLocaleString()}</div>
+                      </div>
+
                       {/* Delivery Address Section */}
                       {selectedOrder.address && (
                         <div className="pb-4 border-b bg-orange-50 p-3 rounded-lg">
@@ -3345,7 +3770,7 @@ const PenumudiesApp = () => {
                       {/* Payment Method Section */}
                       <div className="pb-4 border-b">
                         <div className="text-xs text-gray-600">Payment Method</div>
-                        <div className="font-medium">{selectedOrder.paymentMethod || 'COD'}</div>
+                        <div className="font-medium">{selectedOrder.paymentMethod === 'COD' ? 'Cash on Delivery' : selectedOrder.paymentMethod || 'COD'}</div>
                       </div>
 
                       {/* Order Status Section */}
@@ -3542,6 +3967,8 @@ const PenumudiesApp = () => {
               </div>
             </div>
           )}
+
+
         </div>
       </div>
     );
@@ -3549,15 +3976,201 @@ const PenumudiesApp = () => {
 
   return (
     <>
-      {currentPage === 'login' && <LoginPage />}
       {currentPage === 'signup' && <SignUpPage />}
-      {currentPage === 'otp' && <OTPPage />}
-      {currentPage === 'home' && <HomePage />}
-      {currentPage === 'search' && <SearchPage />}
+      {(currentPage === 'home' || showSignupModal || showAdminLoginModal || showLoginModal) && <HomePage />}
       {currentPage === 'profile' && <ProfilePage />}
       {currentPage === 'checkout' && <CheckoutPage />}
       {currentPage === 'orders' && <OrdersPage />}
       {currentPage === 'admin' && <AdminPanel />}
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <>
+          <div className="fixed inset-0 z-40"></div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-8 relative pointer-events-auto">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+            >
+              <X size={24} />
+            </button>
+
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
+            <p className="text-gray-600 mb-6">Login to your account</p>
+
+            {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+            {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
+
+            <div className="space-y-4">
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
+                <input
+                  type="tel"
+                  placeholder="Mobile Number"
+                  value={loginMobile}
+                  onChange={(e) => setLoginMobile(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLoginSubmit()}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 text-black"
+                />
+              </div>
+
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLoginSubmit()}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 text-black"
+                />
+              </div>
+
+              <button
+                onClick={handleLoginSubmit}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+              >
+                Log In
+              </button>
+            </div>
+
+            <div className="mt-6 text-center space-y-3">
+              <div>
+                <span className="text-gray-600 text-sm">Don't have an account? </span>
+                <button
+                  onClick={() => {
+                    setShowLoginModal(false);
+                    setShowSignupModal(true);
+                  }}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Sign Up
+                </button>
+              </div>
+            </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Sign Up Modal */}
+      {showSignupModal && (
+        <>
+          <div className="fixed inset-0 z-40"></div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-8 relative pointer-events-auto">
+              <button
+                onClick={() => setShowSignupModal(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Create Account</h2>
+              <p className="text-gray-600 mb-6">Join Penumudies today</p>
+
+              {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
+
+              <div className="space-y-4">
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input type="tel" placeholder="Mobile Number" value={signupMobile} onChange={(e) => setSignupMobile(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input type="password" placeholder="Password" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <button onClick={handleSignupSubmit} className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">Create Account</button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <span className="text-gray-600 text-sm">Already have an account? </span>
+                <button 
+                  onClick={() => {
+                    setShowSignupModal(false);
+                    setShowLoginModal(true);
+                  }}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Log In
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Admin Login Modal */}
+      {showAdminLoginModal && (
+        <>
+          <div className="fixed inset-0 z-40"></div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-8 relative pointer-events-auto">
+              <button
+                onClick={() => setShowAdminLoginModal(false)}
+                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+              >
+                <X size={24} />
+              </button>
+
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">Admin Login</h2>
+              <p className="text-gray-600 mb-6">Admin Panel Access</p>
+
+              {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">{success}</div>}
+
+              <div className="space-y-4">
+                <div className="relative">
+                  <User className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Username"
+                    value={adminUsername}
+                    onChange={(e) => setAdminUsername(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLoginSubmit()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-gray-400" size={20} />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAdminLoginSubmit()}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <button 
+                  onClick={handleAdminLoginSubmit} 
+                  disabled={adminLoading}
+                  className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-green-400 disabled:cursor-not-allowed"
+                >
+                  {adminLoading ? 'Logging in...' : 'Admin Login'}
+                </button>
+              </div>
+
+              <div className="mt-6 text-center">
+                <button 
+                  onClick={() => setShowAdminLoginModal(false)}
+                  className="text-gray-600 hover:text-gray-700 text-sm font-medium"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Admin Logout Confirmation */}
       {showAdminLogoutConfirm && (

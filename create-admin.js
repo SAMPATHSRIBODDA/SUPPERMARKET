@@ -28,7 +28,7 @@ async function createAdmin() {
     console.log('✅ Connected to MongoDB');
 
     // Check if admin already exists
-    const existingAdmin = await Admin.findOne({ username: 'admin' });
+    const existingAdmin = await Admin.findOne({ username: 'sampath' });
     if (existingAdmin) {
       console.log('❌ Admin user already exists');
       console.log('  Username:', existingAdmin.username);
@@ -39,8 +39,8 @@ async function createAdmin() {
 
     // Create new admin
     const admin = await Admin.create({
-      username: 'admin',
-      password: 'admin@123',
+      username: 'sampath',
+      password: 'siddu@123',
       email: 'admin@penumudies.com',
       role: 'admin',
       permissions: ['manage_products', 'manage_orders', 'view_dashboard'],
@@ -48,8 +48,8 @@ async function createAdmin() {
     });
 
     console.log('✅ Admin account created successfully!');
-    console.log('  ID (Username): admin');
-    console.log('  Password: admin@123');
+    console.log('  ID (Username): sampath');
+    console.log('  Password: siddu@123');
     console.log('  Email: admin@penumudies.com');
     console.log('\n📝 Use these credentials to login to admin panel');
 

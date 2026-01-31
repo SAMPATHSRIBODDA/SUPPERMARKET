@@ -4,12 +4,18 @@ import { Product } from '@/lib/models/Product';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('📝 Creating product...');
     await dbConnect();
+    console.log('✅ Connected to MongoDB');
 
-    const { name, brand, price, oldPrice, stock, category, image, popular, deliveryTime, description } = await request.json();
+    const body = await request.json();
+    console.log('📥 Request body:', body);
+    
+    const { name, brand, price, oldPrice, stock, category, image, popular, deliveryTime, description } = body;
 
     // Validation
     if (!name || !brand || !price || !oldPrice || stock === undefined || !category || !image) {
+      console.log('❌ Missing required fields');
       return NextResponse.json(
         { error: 'All required fields must be provided' },
         { status: 400 }
@@ -17,6 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (price < 0 || oldPrice < 0 || stock < 0) {
+      console.log('❌ Negative prices/stock');
       return NextResponse.json(
         { error: 'Price and stock cannot be negative' },
         { status: 400 }
@@ -24,6 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (name.length < 2 || name.length > 100) {
+      console.log('❌ Invalid name length');
       return NextResponse.json(
         { error: 'Product name must be between 2 and 100 characters' },
         { status: 400 }
@@ -31,6 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new product
+    console.log('🔨 Creating new product document...');
     const newProduct = new Product({
       name,
       brand,
@@ -44,7 +53,9 @@ export async function POST(request: NextRequest) {
       description: description || '',
     });
 
+    console.log('💾 Saving product to MongoDB...');
     await newProduct.save();
+    console.log('✅ Product saved successfully:', newProduct._id);
 
     return NextResponse.json({
       success: true,
@@ -55,9 +66,11 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error creating product:', error);
+    console.error('❌ Error creating product:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create product';
+    console.error('Error details:', errorMessage);
     return NextResponse.json(
-      { error: 'Failed to create product' },
+      { error: errorMessage || 'Failed to create product' },
       { status: 500 }
     );
   }

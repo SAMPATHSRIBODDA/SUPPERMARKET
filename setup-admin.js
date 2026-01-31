@@ -35,8 +35,8 @@ async function setupAdmin() {
     if (admins.length === 0) {
       console.log('\n➕ Creating default admin account...');
       const newAdmin = await Admin.create({
-        username: 'admin',
-        password: 'admin@123',
+        username: 'sampath',
+        password: 'siddu@123',
         email: 'admin@penumudies.com',
         role: 'admin',
         permissions: ['manage_products', 'manage_orders', 'view_dashboard'],
@@ -46,8 +46,8 @@ async function setupAdmin() {
     }
 
     console.log('\n🎯 Admin Login Credentials:');
-    console.log('   Username: admin');
-    console.log('   Password: admin@123');
+    console.log('   Username: sampath');
+    console.log('   Password: siddu@123');
 
     await mongoose.connection.close();
     console.log('\n✅ Done!');

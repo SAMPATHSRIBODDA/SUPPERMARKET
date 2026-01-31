@@ -66,11 +66,10 @@ const PenumudiesApp = () => {
   const [processingOrder, setProcessingOrder] = useState<boolean>(false);
   const [showAccountMenu, setShowAccountMenu] = useState<boolean>(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState<boolean>(false);
-  const [searchPage, setSearchPage] = useState<boolean>(false);
   const [searchPageQuery, setSearchPageQuery] = useState<string>('');
   const [adminOrders, setAdminOrders] = useState<any[]>([]);
   const [selectedOrderStatus, setSelectedOrderStatus] = useState<string>('');
-  const [adminPollIntervalRef, setAdminPollIntervalRef] = useState<NodeJS.Timeout | null>(null);
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
   const accountMenuRef = useRef<HTMLDivElement>(null);
@@ -142,19 +141,27 @@ const PenumudiesApp = () => {
     }
   }, [currentPage, fetchAdminOrders]);
 
-  // Product Database
-  const productDatabase = [
-    { id: 1, name: 'Amul Fresh Milk', brand: 'Amul', price: 62, oldPrice: 65, stock: 150, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
-    { id: 2, name: 'Mother Dairy Milk 1L', brand: 'Mother Dairy', price: 60, oldPrice: 65, stock: 200, category: 'Dairy', image: '🥛', popular: true, deliveryTime: '8 mins' },
-    { id: 3, name: 'Britannia Bread', brand: 'Britannia', price: 45, oldPrice: 50, stock: 80, category: 'Bakery', image: '🍞', popular: true, deliveryTime: '10 mins' },
-    { id: 4, name: 'Amul Butter 500g', brand: 'Amul', price: 285, oldPrice: 300, stock: 45, category: 'Dairy', image: '🧈', popular: true, deliveryTime: '8 mins' },
-    { id: 5, name: 'Cadbury Dairy Milk', brand: 'Cadbury', price: 50, oldPrice: 60, stock: 120, category: 'Snacks', image: '🍫', popular: true, deliveryTime: '12 mins' },
-    { id: 6, name: 'Lays Chips Classic', brand: 'Lays', price: 20, oldPrice: 25, stock: 200, category: 'Snacks', image: '🍟', popular: true, deliveryTime: '12 mins' },
-    { id: 7, name: 'Coca Cola 2L', brand: 'Coca Cola', price: 90, oldPrice: 100, stock: 100, category: 'Beverages', image: '🥤', popular: true, deliveryTime: '15 mins' },
-    { id: 8, name: 'Maggi Noodles 12 Pack', brand: 'Maggi', price: 144, oldPrice: 160, stock: 90, category: 'Instant Food', image: '🍜', popular: true, deliveryTime: '10 mins' },
-    { id: 9, name: 'Dettol Handwash', brand: 'Dettol', price: 95, oldPrice: 110, stock: 70, category: 'Personal Care', image: '🧼', popular: true, deliveryTime: '15 mins' },
-    { id: 10, name: 'Organic Bananas 1kg', brand: 'Fresh', price: 55, oldPrice: 60, stock: 120, category: 'Fruits', image: '🍌', popular: true, deliveryTime: '8 mins' },
-  ];
+  // Load products from database on mount
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const response = await fetch('/api/products/update');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.products && data.products.length > 0) {
+            console.log('✓ Loaded', data.products.length, 'products from database');
+            setDbProducts(data.products);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading products:', error);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  // Use database products if available, otherwise fall back to empty array
+  const productDatabase = dbProducts.length > 0 ? dbProducts : [];
 
   const categories = ['All', 'Dairy', 'Bakery', 'Snacks', 'Beverages', 'Instant Food', 'Personal Care', 'Fruits'];
 
@@ -192,7 +199,7 @@ const PenumudiesApp = () => {
     });
 
     setSearchResults(results);
-  }, []);
+  }, [productDatabase]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -207,7 +214,6 @@ const PenumudiesApp = () => {
       setRecentSearches(updated);
       setShowSearchDropdown(false);
       setSearchPageQuery(searchQuery);
-      setSearchPage(true);
       setCurrentPage('search');
     }
   };
@@ -255,7 +261,7 @@ const PenumudiesApp = () => {
 
   useEffect(() => {
     mergeGuestCart();
-  }, [currentUser]);
+  }, [mergeGuestCart]);
 
   const addToCart = (product: Product) => {
     if (product.stock === 0) {
@@ -800,92 +806,135 @@ const PenumudiesApp = () => {
 
               <div className="relative" ref={accountMenuRef}>
                 <button
-                  onClick={() => {
-                    if (currentUser) {
-                      setShowAccountMenu(!showAccountMenu);
-                    } else {
-                      setCurrentPage('login');
-                    }
-                  }}
+                  onClick={() => setShowAccountMenu(true)}
                   className="p-2 hover:bg-gray-100 rounded-lg"
                 >
                   <User size={24} className="text-gray-700" />
                 </button>
 
-                {showAccountMenu && currentUser && (
+                {showAccountMenu && (
                   <div className="absolute right-0 mt-2 w-80 bg-white border rounded-lg shadow-xl z-50">
-                    <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
-                          {currentUser.name.charAt(0).toUpperCase()}
+                    {currentUser ? (
+                      <>
+                        <div className="p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                              {currentUser.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-800">{currentUser.name}</div>
+                              <div className="text-sm text-gray-600">{currentUser.mobile}</div>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-gray-800">{currentUser.name}</div>
-                          <div className="text-sm text-gray-600">{currentUser.mobile}</div>
+
+                        <div className="p-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('profile');
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <User size={18} className="text-gray-600" />
+                            <span className="font-medium">My Profile</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('orders');
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <Package size={18} className="text-gray-600" />
+                            <span className="font-medium">My Orders</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowWishlist(true);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
+                          >
+                            <Heart size={18} className="text-gray-600" />
+                            <span className="font-medium">My Wishlist</span>
+                          </button>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="p-2">
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setCurrentPage('profile');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <User size={18} className="text-gray-600" />
-                        <span className="font-medium">My Profile</span>
-                      </button>
+                        <div className="border-t p-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setShowLogoutConfirm(true);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-red-50 rounded-lg flex items-center gap-3 text-red-600"
+                          >
+                            <ArrowRight size={18} />
+                            <span className="font-medium">Logout</span>
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-4 border-b bg-gradient-to-r from-gray-50 to-blue-50">
+                          <div className="font-bold text-gray-800 text-lg">Account Menu</div>
+                        </div>
 
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setCurrentPage('orders');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <Package size={18} className="text-gray-600" />
-                        <span className="font-medium">My Orders</span>
-                      </button>
+                        <div className="p-3 space-y-2">
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('login');
+                              window.scrollTo(0, 0);
+                            }}
+                            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition flex items-center gap-2 justify-center"
+                          >
+                            <Lock size={18} />
+                            Login
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setShowWishlist(true);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-gray-50 rounded-lg flex items-center gap-3"
-                      >
-                        <Heart size={18} className="text-gray-600" />
-                        <span className="font-medium">My Wishlist</span>
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentPage('signup');
+                            }}
+                            className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center gap-2 justify-center"
+                          >
+                            <User size={18} />
+                            Sign Up
+                          </button>
 
-                    <div className="border-t p-2">
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setCurrentPage('admin-orders');
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-blue-50 rounded-lg flex items-center gap-3 text-blue-600"
-                      >
-                        <TrendingUp size={18} />
-                        <span className="font-medium">Admin - Orders</span>
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setIsAdminLogin(true);
+                              setCurrentPage('login');
+                              window.scrollTo(0, 0);
+                            }}
+                            className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition flex items-center gap-2 justify-center"
+                          >
+                            <Lock size={18} />
+                            Admin Panel
+                          </button>
 
-                    <div className="border-t p-2">
-                      <button
-                        onClick={() => {
-                          setShowAccountMenu(false);
-                          setShowLogoutConfirm(true);
-                        }}
-                        className="w-full text-left px-4 py-3 hover:bg-red-50 rounded-lg flex items-center gap-3 text-red-600"
-                      >
-                        <ArrowRight size={18} />
-                        <span className="font-medium">Logout</span>
-                      </button>
-                    </div>
+                          <button
+                            onClick={() => {
+                              setShowAccountMenu(false);
+                              setCurrentUser(null);
+                              setCurrentPage('home');
+                              setSuccess('Welcome! You are browsing as a guest.');
+                              setTimeout(() => setSuccess(''), 2000);
+                            }}
+                            className="w-full bg-gray-600 text-white py-2 rounded-lg font-semibold hover:bg-gray-700 transition flex items-center gap-2 justify-center"
+                          >
+                            <User size={18} />
+                            Guest Account
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

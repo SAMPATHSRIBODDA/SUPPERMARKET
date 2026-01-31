@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import { Order } from '@/lib/models/Order';
+import { Product } from '@/lib/models/Product';
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,6 +87,30 @@ export async function POST(request: NextRequest) {
         { error: 'Order with this ID already exists' },
         { status: 409 }
       );
+    }
+
+    // REDUCE STOCK FOR EACH PRODUCT IN ORDER
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+      
+      if (!product) {
+        return NextResponse.json(
+          { error: `Product not found: ${item.name}` },
+          { status: 404 }
+        );
+      }
+
+      // Check if stock is available
+      if (product.stock < item.quantity) {
+        return NextResponse.json(
+          { error: `Insufficient stock for ${item.name}. Available: ${product.stock}, Requested: ${item.quantity}` },
+          { status: 400 }
+        );
+      }
+
+      // Reduce stock
+      product.stock -= item.quantity;
+      await product.save();
     }
 
     const newOrder = new Order({
