@@ -15,6 +15,7 @@ interface User {
 
 interface Product {
   id: number;
+  _id?: string;
   name: string;
   brand: string;
   price: number;
@@ -33,6 +34,7 @@ interface CartItem extends Product {
 
 interface Address {
   id: string | number;
+  _id?: string;
   title?: string;
   name?: string;
   address: string;
@@ -97,6 +99,11 @@ const PenumudiesApp = () => {
   const [signupMobile, setSignupMobile] = useState<string>('');
   const [signupPassword, setSignupPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [otp, setOtp] = useState<string>('');
+  const [otpTimer, setOtpTimer] = useState<number>(0);
+  const [otpExpiry, setOtpExpiry] = useState<number | null>(null);
+  const [generatedOTP, setGeneratedOTP] = useState<string>('');
+  const [pendingUser, setPendingUser] = useState<Partial<User> | null>(null);
   
   // Admin Panel State
   const [adminLoggedIn, setAdminLoggedIn] = useState<boolean>(false);
@@ -575,8 +582,8 @@ const PenumudiesApp = () => {
         throw new Error(data.message || 'Failed to update mobile');
       }
 
-      const updatedUser = { ...currentUser, mobile: editMobile.trim() };
-      setCurrentUser(updatedUser);
+      const updatedUser = { ...currentUser, mobile: editMobile.trim(), name: currentUser?.name || '' };
+      setCurrentUser(updatedUser as User);
       setSuccess('Mobile number updated successfully');
       setTimeout(() => setSuccess(''), 2000);
     } catch (err) {
@@ -2555,7 +2562,7 @@ const PenumudiesApp = () => {
             const data = await response.json();
             if (data.orders) {
               // Find and update the selected order with latest data
-              const updatedOrder = data.orders.find(o => o.orderId === selectedOrder.orderId);
+              const updatedOrder = data.orders.find((o: any) => o.orderId === selectedOrder.orderId);
               if (updatedOrder) {
                 setSelectedOrder(updatedOrder);
               }
